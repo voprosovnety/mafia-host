@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <title>Игра · Mafia Host</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script src="app.js" type="module"></script>
+  </head>
+  <body>
+    <header class="app-header">
+      <a class="app-brand" href="#game" aria-label="Mafia Host — игра">
+        <span class="app-brand-mark" aria-hidden="true">M</span>
+        <span><strong>Mafia Host</strong><small>Пульт ведущего</small></span>
+      </a>
+      <nav class="app-navigation" aria-label="Разделы сайта">
+        <a href="#game" data-route-link="game">Игра</a>
+        <a href="#history" data-route-link="history">История</a>
+        <a href="#leaderboard" data-route-link="leaderboard">Общая таблица</a>
+      </nav>
+      <span class="storage-indicator" id="storage-indicator" title="Проверяю соединение с SQLite">
+        <span aria-hidden="true"></span> SQLite
+      </span>
+    </header>
+
+    <main class="app-shell">
+      <section class="page-view game-board" data-view="game" data-title="Игра">
+        <div class="control-column">
+          <section class="timer-panel" aria-labelledby="timer-heading">
+            <h1 id="timer-heading">Таймер</h1>
+            <output class="timer" id="timer" aria-live="off">00:00:00</output>
+            <p class="timer-state" id="timer-state">
+              <span class="state-dot" aria-hidden="true"></span>
+              <span id="timer-state-text">Остановлен</span>
+            </p>
+            <div class="timer-actions">
+              <p class="timer-hint"><kbd>Space</kbd> сброс и старт</p>
+              <button class="reset-button" id="reset-timer" type="button">Сбросить</button>
+            </div>
+          </section>
+
+          <section class="voting-panel" aria-labelledby="voting-heading">
+            <div class="voting-heading-row">
+              <h2 id="voting-heading">Голосование</h2>
+              <div class="voting-actions">
+                <button class="reset-rounds-button" id="reset-rounds" type="button">Сбросить круги</button>
+                <button class="next-round-button" id="next-round" type="button">Следующий круг</button>
+              </div>
+            </div>
+            <div class="voting-rounds" id="voting-rounds" aria-live="polite"></div>
+          </section>
+
+          <section class="result-panel" aria-labelledby="result-heading">
+            <h2 id="result-heading">Результат игры</h2>
+            <div class="winner-buttons" aria-label="Победившая команда">
+              <button class="winner-button winner-red" type="button" data-winner="red" aria-pressed="false">Красные</button>
+              <button class="winner-button winner-black" type="button" data-winner="black" aria-pressed="false">Чёрные</button>
+            </div>
+            <button class="save-game-button" id="save-game" type="button">Сохранить игру</button>
+            <p class="save-status" id="save-status" role="status"></p>
+          </section>
+        </div>
+
+        <section class="players-panel" aria-labelledby="players-heading">
+          <div class="players-table">
+            <div class="players-heading-row">
+              <h2 id="players-heading">Игроки</h2>
+              <span>Роль</span>
+              <span>Фолы</span>
+              <span>Голос.</span>
+              <span>Балл</span>
+              <span>Доп.</span>
+              <span>Сумма</span>
+              <span>Заметки</span>
+            </div>
+            <ol class="players-list" id="players-list"></ol>
+          </div>
+        </section>
+      </section>
+
+      <section class="page-view data-page" data-view="history" data-title="История" hidden>
+        <section class="history-panel" aria-labelledby="history-heading">
+          <div class="history-heading-row">
+            <div>
+              <span class="section-eyebrow">Архив SQLite</span>
+              <h1 id="history-heading">История игр</h1>
+            </div>
+            <span id="history-count">0 игр</span>
+          </div>
+          <p class="page-status" id="history-status" role="status"></p>
+          <div class="history-list" id="history-list"></div>
+          <div class="history-table-wrap">
+            <p class="history-empty" id="history-empty">Сохранённых игр пока нет</p>
+          </div>
+        </section>
+      </section>
+
+      <section class="page-view data-page" data-view="leaderboard" data-title="Общая таблица" hidden>
+        <section class="leaderboard-panel" aria-labelledby="leaderboard-heading">
+          <div class="leaderboard-heading-row">
+            <div>
+              <span class="section-eyebrow">Результаты игроков</span>
+              <h1 id="leaderboard-heading">Общая таблица</h1>
+            </div>
+            <span id="leaderboard-count">0 игроков</span>
+          </div>
+          <div class="leaderboard-filters" aria-label="Интервал игр">
+            <label>
+              <span>Начало интервала</span>
+              <input id="leaderboard-from" type="datetime-local" step="1" />
+            </label>
+            <label>
+              <span>Конец интервала</span>
+              <input id="leaderboard-to" type="datetime-local" step="1" />
+            </label>
+            <button id="reset-leaderboard-filter" type="button">Показать всё время</button>
+            <p id="leaderboard-filter-status" role="status">Учтено: 0 игр из 0</p>
+          </div>
+          <div class="leaderboard-table-wrap">
+            <table class="leaderboard-table">
+              <thead>
+                <tr>
+                  <th>Место</th>
+                  <th>Никнейм</th>
+                  <th>Все баллы</th>
+                  <th>Допы − штрафы</th>
+                  <th>Допы</th>
+                  <th>Штрафы</th>
+                  <th>Игры</th>
+                  <th>Средний</th>
+                </tr>
+              </thead>
+              <tbody id="leaderboard-body"></tbody>
+            </table>
+            <p class="leaderboard-empty" id="leaderboard-empty">Рейтинг появится после сохранения первой игры</p>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <dialog class="notes-dialog" id="notes-dialog">
+      <form method="dialog" class="notes-form">
+        <div class="notes-heading-row">
+          <div>
+            <span class="notes-eyebrow">Заметки игрока</span>
+            <h2 id="notes-title">Игрок</h2>
+          </div>
+          <button class="notes-close-icon" value="cancel" aria-label="Закрыть заметки">×</button>
+        </div>
+        <textarea id="notes-text" rows="10" placeholder="Действия игрока во время игры…"></textarea>
+        <button class="notes-save-button" id="save-notes" value="default">Сохранить заметки</button>
+      </form>
+    </dialog>
+
+    <dialog class="edit-game-dialog" id="edit-game-dialog">
+      <form class="edit-game-form" id="edit-game-form">
+        <div class="edit-game-heading-row">
+          <div>
+            <span class="notes-eyebrow">Сохранённая игра</span>
+            <h2>Редактирование</h2>
+          </div>
+          <button class="notes-close-icon" id="cancel-edit-game" type="button" aria-label="Закрыть редактирование">×</button>
+        </div>
+        <div class="edit-game-meta">
+          <label>Дата <input id="edit-game-date" type="date" required /></label>
+          <label>Время <input id="edit-game-time" type="time" step="1" required /></label>
+          <label>Победитель
+            <select id="edit-game-winner">
+              <option value="red">Красные</option>
+              <option value="black">Чёрные</option>
+            </select>
+          </label>
+        </div>
+        <div class="edit-game-table-wrap">
+          <table class="edit-game-table">
+            <thead><tr><th>№</th><th>Никнейм</th><th>Роль</th><th>Балл</th><th>Доп.</th><th>Сумма</th></tr></thead>
+            <tbody id="edit-game-body"></tbody>
+          </table>
+        </div>
+        <p class="edit-game-error" id="edit-game-error" role="alert"></p>
+        <button class="edit-game-save-button" id="save-edited-game" type="submit">Сохранить изменения</button>
+      </form>
+    </dialog>
+  </body>
+</html>
