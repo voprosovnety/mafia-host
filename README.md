@@ -9,7 +9,6 @@
 Если macOS при первом запуске блокирует файл, нажмите по `start.command` правой кнопкой, выберите `Открыть` и подтвердите запуск. Также сайт можно запустить из Terminal:
 
 ```sh
-cd /Users/voprosovnety/Projects/mafia-host
 python3 server.py
 ```
 
