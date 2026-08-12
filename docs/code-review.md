@@ -18,6 +18,7 @@ Reviewed the browser application, SQLite persistence, HTTP boundary, data valida
 10. **Edited game dates did not affect history order.** History is now sorted by the editable game date and time.
 11. **Regression coverage was absent.** Pure domain tests cover scores, stable IDs, aggregation, interval boundaries, and chronology; Python tests cover SQLite CRUD, duplicate rejection, validation, and rollback behavior.
 12. **Real game data could be published accidentally.** SQLite files, WAL files, legacy game exports, and macOS metadata are excluded from Git.
+13. **The first SQLite migration recovered only CSV exports.** Two games existed only in the old `file://` IndexedDB and were invisible from the new HTTP origin. A classic-script recovery page now reads that exact origin, compares it with SQLite, and imports only missing date-time records.
 
 ## Intentional boundaries
 

@@ -33,6 +33,7 @@ Always run the relevant tests after changing behavior. For UI changes, verify al
 - `backend/database.py`: SQLite schema, validation, and transactional CRUD.
 - `backend/http.py`: static-file server and JSON API.
 - `backend/legacy.py`: one-way import of old CSV exports.
+- `legacy-recovery.html` + `legacy-recovery.js`: classic-script `file://` recovery tool for the old file-origin IndexedDB. It must remain usable without ES-module loading.
 - `data/mafia-host.sqlite3`: real user data. It is ignored by Git and must never be committed.
 
 Keep modules aligned with these responsibilities. Prefer pure functions in `js/domain.js` for rules that can be tested without a DOM. New views should get their own module and a `data-view` route instead of expanding `app.js`.
@@ -52,7 +53,7 @@ Keep modules aligned with these responsibilities. Prefer pure functions in `js/d
 
 ## Storage and safety
 
-Completed games live in SQLite. The unfinished current game still lives in browser `localStorage` so rapid input does not generate server traffic. Legacy browser games may be migrated to SQLite by `js/storage.js`; legacy CSV files are imported by `server.py`.
+Completed games live in SQLite. The unfinished current game still lives in browser `localStorage` so rapid input does not generate server traffic. Legacy browser games may be migrated from the current origin by `js/storage.js`. Old `file://` IndexedDB data belongs to a different browser origin and must be recovered through `legacy-recovery.html`; legacy CSV files are imported by `server.py`.
 
 Never delete, overwrite, commit, or recreate `data/mafia-host.sqlite3` during routine development or tests. Tests must use temporary databases. Before changing the SQLite schema, add an explicit migration keyed by `PRAGMA user_version` and test upgrading an existing database.
 
