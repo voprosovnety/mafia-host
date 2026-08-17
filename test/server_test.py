@@ -1,3 +1,4 @@
+import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
@@ -17,6 +18,7 @@ def sample_game(game_id="mf-test-game"):
             "base": base,
             "extra": 0,
             "total": base,
+            "isFirstKilled": index == 1,
         })
     return {
         "gameId": game_id,
@@ -40,6 +42,7 @@ class GamesDatabaseTest(unittest.TestCase):
     def test_crud_and_duplicate_protection(self):
         original = self.database.add_game(sample_game())
         self.assertEqual(len(self.database.list_games()), 1)
+        self.assertTrue(self.database.list_games()[0]["players"][0]["isFirstKilled"])
         with self.assertRaises(DuplicateGameError):
             self.database.add_game(sample_game())
 
@@ -73,7 +76,64 @@ class GamesDatabaseTest(unittest.TestCase):
     def test_schema_version_is_recorded(self):
         with self.database.connect() as connection:
             version = connection.execute("PRAGMA user_version").fetchone()[0]
-        self.assertEqual(version, 1)
+        self.assertEqual(version, 2)
+
+    def test_schema_version_one_is_migrated_without_losing_players(self):
+        legacy_path = Path(self.temp_dir.name) / "legacy.sqlite3"
+        with sqlite3.connect(legacy_path) as connection:
+            connection.executescript(
+                """
+                CREATE TABLE games (
+                    game_id TEXT PRIMARY KEY,
+                    record_id TEXT NOT NULL,
+                    game_date TEXT NOT NULL,
+                    game_time TEXT NOT NULL,
+                    winner TEXT NOT NULL,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE TABLE players (
+                    game_id TEXT NOT NULL REFERENCES games(game_id) ON DELETE CASCADE,
+                    player_number INTEGER NOT NULL,
+                    nickname TEXT NOT NULL,
+                    role TEXT NOT NULL,
+                    base_score REAL NOT NULL,
+                    extra_score REAL NOT NULL,
+                    total_score REAL NOT NULL,
+                    PRIMARY KEY (game_id, player_number)
+                );
+                INSERT INTO games (game_id, record_id, game_date, game_time, winner)
+                VALUES ('mf-legacy', '2026-08-13T00:00:00Z', '13.08.2026', '07:00:00', 'red');
+                INSERT INTO players (
+                    game_id, player_number, nickname, role, base_score, extra_score, total_score
+                ) VALUES ('mf-legacy', 1, 'Игрок 1', 'Мирный', 1, 0, 1);
+                PRAGMA user_version = 1;
+                """
+            )
+
+        migrated = GamesDatabase(legacy_path)
+        with migrated.connect() as connection:
+            version = connection.execute("PRAGMA user_version").fetchone()[0]
+            first_killed = connection.execute(
+                "SELECT is_first_killed FROM players WHERE game_id = 'mf-legacy'"
+            ).fetchone()[0]
+        self.assertEqual(version, 2)
+        self.assertEqual(first_killed, 0)
+
+    def test_only_one_first_killed_player_is_allowed(self):
+        invalid = sample_game()
+        invalid["players"][1]["isFirstKilled"] = True
+        with self.assertRaises(ValidationError):
+            self.database.add_game(invalid)
+
+    def test_legacy_payload_without_first_killed_flag_stays_compatible(self):
+        legacy = sample_game("mf-legacy-payload")
+        for player in legacy["players"]:
+            player.pop("isFirstKilled")
+        self.database.add_game(legacy)
+        self.assertFalse(any(
+            player["isFirstKilled"] for player in self.database.list_games()[0]["players"]
+        ))
 
 
 if __name__ == "__main__":

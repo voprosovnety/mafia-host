@@ -51,13 +51,43 @@
             <div class="voting-rounds" id="voting-rounds" aria-live="polite"></div>
           </section>
 
+          <section class="night-panel" aria-labelledby="night-heading">
+            <div class="night-heading-row">
+              <div>
+                <h2 id="night-heading">Ночи</h2>
+                <p id="night-summary" role="status">Ночей: 1 · целей: 0 · промахов: 0</p>
+              </div>
+              <button class="add-night-button" id="add-night" type="button">+ Ночь</button>
+            </div>
+            <div class="night-workbench">
+              <div class="night-shots-list" id="night-shots-list" aria-label="Цели ночной стрельбы"></div>
+              <section class="best-move-inline" aria-labelledby="best-move-heading">
+                <div class="best-move-heading">
+                  <h3 id="best-move-heading">ЛХ</h3>
+                  <div class="best-move-meta">
+                    <span id="first-killed-output" role="status">ПУ —</span>
+                    <output id="best-move-bonus" aria-label="Автоматический балл за ЛХ">+0</output>
+                  </div>
+                </div>
+                <div class="best-move-inputs" aria-label="Три игрока лучшего хода">
+                  <input class="best-move-input" type="number" min="1" max="10" step="1" placeholder="№" aria-label="Первый игрок ЛХ" />
+                  <input class="best-move-input" type="number" min="1" max="10" step="1" placeholder="№" aria-label="Второй игрок ЛХ" />
+                  <input class="best-move-input" type="number" min="1" max="10" step="1" placeholder="№" aria-label="Третий игрок ЛХ" />
+                </div>
+              </section>
+            </div>
+          </section>
+
           <section class="result-panel" aria-labelledby="result-heading">
             <h2 id="result-heading">Результат игры</h2>
             <div class="winner-buttons" aria-label="Победившая команда">
               <button class="winner-button winner-red" type="button" data-winner="red" aria-pressed="false">Красные</button>
               <button class="winner-button winner-black" type="button" data-winner="black" aria-pressed="false">Чёрные</button>
             </div>
-            <button class="save-game-button" id="save-game" type="button">Сохранить игру</button>
+            <div class="game-result-actions">
+              <button class="new-game-button" id="new-game" type="button">Новая игра</button>
+              <button class="save-game-button" id="save-game" type="button">Сохранить игру</button>
+            </div>
             <p class="save-status" id="save-status" role="status"></p>
           </section>
         </div>
@@ -65,7 +95,11 @@
         <section class="players-panel" aria-labelledby="players-heading">
           <div class="players-table">
             <div class="players-heading-row">
-              <h2 id="players-heading">Игроки</h2>
+              <div class="players-title-cell">
+                <h2 id="players-heading">Игроки</h2>
+                <button class="randomize-seating-button" id="randomize-seating" type="button">Рассадить случайно</button>
+                <span class="seating-status" id="seating-status" role="status"></span>
+              </div>
               <span>Роль</span>
               <span>Фолы</span>
               <span>Голос.</span>

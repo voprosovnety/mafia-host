@@ -2,6 +2,15 @@ export const PLAYER_COUNT = 10;
 export const MAX_FAULTS = 4;
 export const ROLE_OPTIONS = ["Мирный", "Шериф", "Мафия", "Дон"];
 
+export function shuffledCopy(items, random = Math.random) {
+  const shuffled = [...items];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const target = Math.floor(random() * (index + 1));
+    [shuffled[index], shuffled[target]] = [shuffled[target], shuffled[index]];
+  }
+  return shuffled;
+}
+
 export function normalizeRole(role) {
   return String(role).trim().toLowerCase().replaceAll("ё", "е");
 }
@@ -18,6 +27,23 @@ export function getRoleTeam(role) {
   }
 
   return null;
+}
+
+export function calculateBestMoveBonus(bestMoveNumbers, players) {
+  const rolesByNumber = new Map(
+    (Array.isArray(players) ? players : [])
+      .map((player) => [player.number, player.role]),
+  );
+  const selectedNumbers = new Set(
+    (Array.isArray(bestMoveNumbers) ? bestMoveNumbers : [])
+      .filter((number) => Number.isInteger(number) && rolesByNumber.has(number)),
+  );
+  const blackPlayersCount = [...selectedNumbers]
+    .filter((number) => getRoleTeam(rolesByNumber.get(number)) === "black")
+    .length;
+  if (blackPlayersCount === 3) return 0.8;
+  if (blackPlayersCount === 2) return 0.5;
+  return 0;
 }
 
 export function parseExtraScore(value) {
@@ -44,10 +70,12 @@ export function formatScore(score) {
   return score === null ? "—" : String(roundScore(score));
 }
 
-export function calculateScores(role, extraValue, winner) {
+export function calculateScores(role, extraValue, winner, automaticExtra = 0) {
   const team = getRoleTeam(role);
   const base = winner && team ? Number(winner === team) : null;
-  const extra = parseExtraScore(extraValue);
+  const manualExtra = parseExtraScore(extraValue);
+  const safeAutomaticExtra = Number.isFinite(Number(automaticExtra)) ? Number(automaticExtra) : 0;
+  const extra = manualExtra === null ? null : roundScore(manualExtra + safeAutomaticExtra);
   const total = base === null || extra === null ? null : roundScore(base + extra);
   return { team, base, extra, total };
 }
@@ -68,7 +96,8 @@ export function buildGameSnapshot(players, winner, now = new Date()) {
     winner,
     winnerLabel: winnerLabel(winner),
     players: players.map((player) => {
-      const scores = calculateScores(player.role, player.extra, winner);
+      const bestMoveBonus = player.isFirstKilled ? player.bestMoveBonus : 0;
+      const scores = calculateScores(player.role, player.extra, winner, bestMoveBonus);
       return {
         number: player.number,
         name: player.name.trim() || `Игрок ${player.number}`,
@@ -76,6 +105,7 @@ export function buildGameSnapshot(players, winner, now = new Date()) {
         base: scores.base,
         extra: scores.extra,
         total: scores.total,
+        isFirstKilled: player.isFirstKilled === true,
       };
     }),
   };
@@ -133,6 +163,31 @@ function hashString(value) {
 
 export function getGameId(game) {
   return game.gameId || `mf-${hashString(gameContentFingerprint(game))}`;
+}
+
+export function recoverFirstKilledMarker(archivedGame, currentGame) {
+  if (
+    !archivedGame ||
+    !currentGame ||
+    !Array.isArray(archivedGame.players) ||
+    !Array.isArray(currentGame.players) ||
+    getGameId(archivedGame) !== getGameId(currentGame) ||
+    archivedGame.players.some((player) => player.isFirstKilled === true)
+  ) return null;
+
+  const firstKilledPlayers = currentGame.players
+    .filter((player) => player.isFirstKilled === true);
+  if (firstKilledPlayers.length !== 1) return null;
+
+  const firstKilledNumber = firstKilledPlayers[0].number;
+  if (!archivedGame.players.some((player) => player.number === firstKilledNumber)) return null;
+  return {
+    ...archivedGame,
+    players: archivedGame.players.map((player) => ({
+      ...player,
+      isFirstKilled: player.number === firstKilledNumber,
+    })),
+  };
 }
 
 export function dateToInputValue(date) {

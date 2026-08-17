@@ -2,12 +2,16 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  calculateBestMoveBonus,
   buildLeaderboard,
+  buildGameSnapshot,
   calculateScores,
   compareGamesChronologically,
   filterGamesByInterval,
   getGameId,
   parseExtraScore,
+  recoverFirstKilledMarker,
+  shuffledCopy,
 } from "../js/domain.js";
 
 function game({ date, time, players }) {
@@ -21,6 +25,14 @@ test("additional scores accept commas, negatives and empty values", () => {
   assert.equal(parseExtraScore("abc"), null);
 });
 
+test("random seating shuffles a copy without losing players", () => {
+  const players = ["А", "Б", "В", "Г"];
+  const randomValues = [0.2, 0.8, 0.1];
+  const shuffled = shuffledCopy(players, () => randomValues.shift());
+  assert.deepEqual(shuffled, ["Б", "Г", "В", "А"]);
+  assert.deepEqual(players, ["А", "Б", "В", "Г"]);
+});
+
 test("base score follows the role team and winner", () => {
   assert.deepEqual(calculateScores("Мирный", "0.6", "red"), {
     team: "red", base: 1, extra: 0.6, total: 1.6,
@@ -28,6 +40,59 @@ test("base score follows the role team and winner", () => {
   assert.deepEqual(calculateScores("Дон", "-0.4", "red"), {
     team: "black", base: 0, extra: -0.4, total: -0.4,
   });
+});
+
+test("best move awards 0.5 for two black roles and 0.8 for three", () => {
+  const players = [
+    { number: 1, role: "Мирный" },
+    { number: 2, role: "Мафия" },
+    { number: 3, role: "Дон" },
+    { number: 4, role: "Мафия" },
+  ];
+  assert.equal(calculateBestMoveBonus([1, 2, null], players), 0);
+  assert.equal(calculateBestMoveBonus([1, 2, 3], players), 0.5);
+  assert.equal(calculateBestMoveBonus([2, 3, 4], players), 0.8);
+  assert.equal(calculateBestMoveBonus([2, 2, 3], players), 0.5);
+  assert.equal(calculateBestMoveBonus([2, 3, 4], null), 0);
+});
+
+test("best move bonus is added to manual extra for the first killed player", () => {
+  assert.deepEqual(calculateScores("Мирный", "0.2", "red", 0.5), {
+    team: "red", base: 1, extra: 0.7, total: 1.7,
+  });
+  const snapshot = buildGameSnapshot([
+    {
+      number: 1,
+      name: "ПУ",
+      role: "Мирный",
+      extra: "-0.2",
+      isFirstKilled: true,
+      bestMoveBonus: 0.8,
+    },
+  ], "red", new Date("2026-08-17T12:00:00Z"));
+  assert.equal(snapshot.players[0].extra, 0.6);
+  assert.equal(snapshot.players[0].total, 1.6);
+  assert.equal(snapshot.players[0].isFirstKilled, true);
+});
+
+test("a matching archived game recovers the first-killed marker from the current game", () => {
+  const archived = {
+    gameId: "mf-matching-game",
+    winner: "red",
+    players: [
+      { number: 1, name: "Один", role: "Мирный", base: 1, extra: 0, total: 1, isFirstKilled: false },
+      { number: 2, name: "Два", role: "Мафия", base: 0, extra: 0, total: 0, isFirstKilled: false },
+    ],
+  };
+  const current = structuredClone(archived);
+  current.players[0].isFirstKilled = true;
+
+  const recovered = recoverFirstKilledMarker(archived, current);
+
+  assert.equal(recovered.players[0].isFirstKilled, true);
+  assert.equal(recovered.players[1].isFirstKilled, false);
+  assert.equal(archived.players[0].isFirstKilled, false);
+  assert.equal(recoverFirstKilledMarker(archived, { ...current, gameId: "mf-other" }), null);
 });
 
 test("stable game id ignores metadata but changes with results", () => {

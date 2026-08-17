@@ -26,6 +26,20 @@ function createRoleCell(role) {
   return cell;
 }
 
+function createPlayerNameCell(player) {
+  const cell = document.createElement("td");
+  const name = document.createElement("span");
+  name.textContent = player.name;
+  cell.append(name);
+  if (player.isFirstKilled) {
+    const badge = document.createElement("span");
+    badge.className = "history-first-killed-badge";
+    badge.textContent = "ПУ";
+    cell.append(badge);
+  }
+  return cell;
+}
+
 function createEditRoleSelect(roleName) {
   const select = document.createElement("select");
   select.className = "edit-game-role player-role";
@@ -129,9 +143,10 @@ export class HistoryView {
       const tableBody = document.createElement("tbody");
       game.players.forEach((player) => {
         const row = document.createElement("tr");
+        row.classList.toggle("is-first-killed", player.isFirstKilled === true);
         row.append(
           createCell(player.number),
-          createCell(player.name),
+          createPlayerNameCell(player),
           createRoleCell(player.role),
           createCell(formatScore(player.base)),
           createCell(formatScore(player.extra)),
@@ -170,6 +185,7 @@ export class HistoryView {
 
     game.players.forEach((player) => {
       const tableRow = document.createElement("tr");
+      tableRow.classList.toggle("is-first-killed", player.isFirstKilled === true);
       const number = createCell(player.number);
       const nameCell = document.createElement("td");
       const name = document.createElement("input");
@@ -196,7 +212,15 @@ export class HistoryView {
       total.className = "edit-game-total";
       totalCell.append(total);
 
-      const row = { playerNumber: player.number, name, role, base, extra, total };
+      const row = {
+        playerNumber: player.number,
+        isFirstKilled: player.isFirstKilled === true,
+        name,
+        role,
+        base,
+        extra,
+        total,
+      };
       base.addEventListener("change", () => this.updateEditedTotal(row));
       extra.addEventListener("input", () => this.updateEditedTotal(row));
       this.playerRows.push(row);
@@ -245,6 +269,7 @@ export class HistoryView {
         base,
         extra,
         total: roundScore(base + extra),
+        isFirstKilled: row.isFirstKilled,
       };
     });
     delete updatedGame.gameId;
