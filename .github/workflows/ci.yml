@@ -42,5 +42,10 @@ jobs:
       - name: Check Python syntax
         run: python3 -m py_compile server.py backend/*.py
 
+      - name: Install zsh
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes zsh
+
       - name: Check launcher syntax
         run: zsh -n start.command
