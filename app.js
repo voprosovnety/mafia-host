@@ -1,11 +1,14 @@
 import {
+  calculateBestMoveBonus,
   buildGameSnapshot,
   compareGamesChronologically,
   getGameId,
+  recoverFirstKilledMarker,
   validateGame,
 } from "./js/domain.js";
 import { HistoryView } from "./js/history.js";
 import { LeaderboardView } from "./js/leaderboard.js";
+import { NightController } from "./js/night.js";
 import { PlayersController } from "./js/players.js";
 import { SpaRouter } from "./js/router.js";
 import { CurrentGameStore, GamesRepository } from "./js/storage.js";
@@ -18,11 +21,13 @@ const savedGames = [];
 let currentWinner = null;
 let initialized = false;
 let timer = null;
+let night = null;
 
 const saveStatus = document.querySelector("#save-status");
 const historyStatus = document.querySelector("#history-status");
 const storageIndicator = document.querySelector("#storage-indicator");
 const saveGameButton = document.querySelector("#save-game");
+const newGameButton = document.querySelector("#new-game");
 const winnerButtons = document.querySelectorAll(".winner-button");
 
 function setStatus(element, message, isError = false) {
@@ -37,9 +42,31 @@ function persistCurrentGame() {
     winner: currentWinner,
     currentRoundIndex: votingState.currentRoundIndex,
     votingRounds: votingState.votingRounds,
+    night: night.getState(),
     timer: timer.getState(),
     players: players.getState(),
   });
+}
+
+function syncFirstKilledAndBestMoveBonus() {
+  const firstKilledPlayerNumber = night.getFirstKilledPlayerNumber();
+  players.setFirstKilled(firstKilledPlayerNumber, false);
+  const bonus = firstKilledPlayerNumber === null
+    ? 0
+    : calculateBestMoveBonus(night.getState().bestMove, players.getState());
+  players.setBestMoveBonus(bonus);
+  night.setBestMoveBonus(bonus);
+}
+
+function handleNightChange() {
+  syncFirstKilledAndBestMoveBonus();
+  voting.setNightKills(night.getNightKills());
+  persistCurrentGame();
+}
+
+function handlePlayersChange() {
+  syncFirstKilledAndBestMoveBonus();
+  persistCurrentGame();
 }
 
 const voting = new VotingController({
@@ -55,11 +82,23 @@ const players = new PlayersController({
   notesTitle: document.querySelector("#notes-title"),
   notesText: document.querySelector("#notes-text"),
   saveNotesButton: document.querySelector("#save-notes"),
+  randomizeButton: document.querySelector("#randomize-seating"),
+  seatingStatus: document.querySelector("#seating-status"),
   onNominate: (playerNumber) => voting.toggleNomination(playerNumber),
-  onChange: persistCurrentGame,
+  onChange: handlePlayersChange,
 });
 
 players.records.forEach((record) => voting.registerNominationButton(record.number, record.nominate));
+
+night = new NightController({
+  shotsList: document.querySelector("#night-shots-list"),
+  addNightButton: document.querySelector("#add-night"),
+  summary: document.querySelector("#night-summary"),
+  firstKilledOutput: document.querySelector("#first-killed-output"),
+  bestMoveBonusOutput: document.querySelector("#best-move-bonus"),
+  bestMoveInputs: document.querySelectorAll(".best-move-input"),
+  onChange: handleNightChange,
+});
 
 timer = new TimerController({
   output: document.querySelector("#timer"),
@@ -98,6 +137,25 @@ function applySavedGamesChange(change) {
   refreshSavedViews();
 }
 
+async function recoverCurrentGameFirstKilledMarker() {
+  const playerState = players.getState();
+  if (validateGame(playerState, currentWinner)) return false;
+
+  const currentSnapshot = buildGameSnapshot(playerState, currentWinner);
+  const savedIndex = savedGames.findIndex((game) => (
+    getGameId(game) === getGameId(currentSnapshot)
+  ));
+  if (savedIndex === -1) return false;
+
+  const recoveredGame = recoverFirstKilledMarker(savedGames[savedIndex], currentSnapshot);
+  if (!recoveredGame) return false;
+  savedGames[savedIndex] = await repository.replace(
+    savedGames[savedIndex].gameId,
+    recoveredGame,
+  );
+  return true;
+}
+
 const history = new HistoryView({
   repository,
   elements: {
@@ -132,6 +190,21 @@ function selectWinner(winner, shouldPersist = true) {
 
 winnerButtons.forEach((button) => {
   button.addEventListener("click", () => selectWinner(button.dataset.winner));
+});
+
+newGameButton.addEventListener("click", () => {
+  const confirmed = window.confirm(
+    "Начать новую игру? Роли, фолы, допы, заметки, таймер, ночи и голосования будут сброшены. Ники останутся на своих местах.",
+  );
+  if (!confirmed) return;
+
+  selectWinner(null, false);
+  players.resetGameState();
+  voting.reset();
+  timer.reset();
+  night.reset();
+  setStatus(saveStatus, "Новая игра начата — рассадка сохранена");
+  persistCurrentGame();
 });
 
 saveGameButton.addEventListener("click", async () => {
@@ -171,6 +244,9 @@ new SpaRouter({
 const storedCurrentGame = currentGameStore.load();
 players.restore(storedCurrentGame?.players);
 voting.restore(storedCurrentGame?.votingRounds, storedCurrentGame?.currentRoundIndex);
+night.restore(storedCurrentGame?.night);
+syncFirstKilledAndBestMoveBonus();
+voting.setNightKills(night.getNightKills());
 selectWinner(storedCurrentGame?.winner, false);
 timer.restore(storedCurrentGame?.timer);
 initialized = true;
@@ -178,9 +254,18 @@ initialized = true;
 try {
   const games = await repository.initialize();
   savedGames.splice(0, savedGames.length, ...games);
+  let recoveredFirstKilled = false;
+  try {
+    recoveredFirstKilled = await recoverCurrentGameFirstKilledMarker();
+  } catch (recoveryError) {
+    setStatus(historyStatus, `Не удалось восстановить ПУ: ${recoveryError.message}`, true);
+  }
   refreshSavedViews();
   storageIndicator.classList.add("is-online");
   storageIndicator.title = "SQLite подключена";
+  if (recoveredFirstKilled) {
+    setStatus(historyStatus, "ПУ восстановлен из текущей игры");
+  }
 } catch (error) {
   storageIndicator.classList.add("is-error");
   storageIndicator.title = "SQLite недоступна";

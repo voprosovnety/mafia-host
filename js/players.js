@@ -4,22 +4,37 @@ import {
   MAX_FAULTS,
   PLAYER_COUNT,
   ROLE_OPTIONS,
+  shuffledCopy,
 } from "./domain.js";
 
 export class PlayersController {
-  constructor({ list, notesDialog, notesTitle, notesText, saveNotesButton, onNominate, onChange }) {
+  constructor({
+    list,
+    notesDialog,
+    notesTitle,
+    notesText,
+    saveNotesButton,
+    randomizeButton,
+    seatingStatus,
+    onNominate,
+    onChange,
+  }) {
     this.list = list;
     this.notesDialog = notesDialog;
     this.notesTitle = notesTitle;
     this.notesText = notesText;
     this.onNominate = onNominate;
     this.onChange = onChange;
+    this.randomizeButton = randomizeButton;
+    this.seatingStatus = seatingStatus;
     this.records = [];
     this.winner = null;
+    this.bestMoveBonus = 0;
     this.activeNotesRecord = null;
 
     notesText.addEventListener("input", () => this.storeActiveNotes());
     saveNotesButton.addEventListener("click", () => this.storeActiveNotes());
+    randomizeButton.addEventListener("click", () => this.randomizeSeating());
 
     for (let number = 1; number <= PLAYER_COUNT; number += 1) {
       this.list.append(this.createPlayerRow(number));
@@ -64,8 +79,14 @@ export class PlayersController {
 
     const number = document.createElement("span");
     number.className = "player-number";
-    number.textContent = `${playerNumber}.`;
     number.setAttribute("aria-hidden", "true");
+    const numberValue = document.createElement("span");
+    numberValue.textContent = `${playerNumber}.`;
+    const firstKilledBadge = document.createElement("span");
+    firstKilledBadge.className = "first-killed-badge";
+    firstKilledBadge.textContent = "ПУ";
+    firstKilledBadge.hidden = true;
+    number.append(numberValue, firstKilledBadge);
 
     const name = document.createElement("input");
     name.className = "player-name";
@@ -118,11 +139,13 @@ export class PlayersController {
       role,
       faults,
       nominate,
+      firstKilledBadge,
       base,
       extra,
       total,
       notesButton,
       notes: "",
+      isFirstKilled: false,
     };
 
     for (let faultNumber = 1; faultNumber <= MAX_FAULTS; faultNumber += 1) {
@@ -139,7 +162,10 @@ export class PlayersController {
       faults.append(fault);
     }
 
-    name.addEventListener("input", () => this.onChange());
+    name.addEventListener("input", () => {
+      this.setSeatingStatus("");
+      this.onChange();
+    });
     role.addEventListener("change", () => {
       this.updatePlayerScore(record);
       this.onChange();
@@ -159,7 +185,8 @@ export class PlayersController {
   }
 
   updatePlayerScore(record) {
-    const scores = calculateScores(record.role.value, record.extra.value, this.winner);
+    const automaticExtra = record.isFirstKilled ? this.bestMoveBonus : 0;
+    const scores = calculateScores(record.role.value, record.extra.value, this.winner, automaticExtra);
     record.role.dataset.role = record.role.value;
     record.extra.classList.toggle("is-invalid", scores.extra === null);
     record.base.textContent = formatScore(scores.base);
@@ -167,11 +194,77 @@ export class PlayersController {
     record.base.classList.toggle("has-value", scores.base !== null);
     record.base.classList.toggle("is-winner", scores.base === 1);
     record.total.classList.toggle("has-value", scores.total !== null);
+    record.extra.title = automaticExtra > 0
+      ? `Ручной доп.; бонус ЛХ +${automaticExtra}`
+      : "Ручной дополнительный балл";
   }
 
   setWinner(winner) {
     this.winner = winner;
     this.records.forEach((record) => this.updatePlayerScore(record));
+  }
+
+  setFirstKilled(playerNumber, shouldNotify = true) {
+    const selectedNumber = Number.isInteger(playerNumber) ? playerNumber : null;
+    this.records.forEach((record) => {
+      const selected = record.number === selectedNumber;
+      record.isFirstKilled = selected;
+      record.row.classList.toggle("is-first-killed", selected);
+      record.firstKilledBadge.hidden = !selected;
+      record.name.setAttribute(
+        "aria-label",
+        `${selected ? "Первый убиенный. " : ""}Никнейм игрока ${record.number}`,
+      );
+      this.updatePlayerScore(record);
+    });
+    if (shouldNotify) this.onChange();
+  }
+
+  setBestMoveBonus(bonus) {
+    this.bestMoveBonus = bonus === 0.5 || bonus === 0.8 ? bonus : 0;
+    this.records.forEach((record) => this.updatePlayerScore(record));
+  }
+
+  resetGameState() {
+    this.bestMoveBonus = 0;
+    this.setFirstKilled(null, false);
+    this.records.forEach((record) => {
+      record.role.value = "";
+      record.extra.value = "";
+      record.notes = "";
+      record.notesButton.classList.remove("has-notes");
+      record.notesButton.setAttribute("aria-label", `Открыть заметки игрока ${record.number}`);
+      this.setFaultCount(record, 0);
+      this.updatePlayerScore(record);
+    });
+    this.activeNotesRecord = null;
+    this.notesText.value = "";
+    if (this.notesDialog.open) this.notesDialog.close();
+    this.setSeatingStatus("");
+  }
+
+  setSeatingStatus(message, isError = false) {
+    this.seatingStatus.textContent = message;
+    this.seatingStatus.classList.toggle("is-error", isError);
+  }
+
+  randomizeSeating(random = Math.random) {
+    const names = this.records.map((record) => record.name.value.trim());
+    const firstEmptyIndex = names.findIndex((name) => name === "");
+    if (firstEmptyIndex !== -1) {
+      const emptyCount = names.filter((name) => name === "").length;
+      this.setSeatingStatus(`Осталось заполнить: ${emptyCount}`, true);
+      this.records[firstEmptyIndex].name.focus();
+      return false;
+    }
+
+    const shuffledNames = shuffledCopy(names, random);
+    this.records.forEach((record, index) => {
+      record.name.value = shuffledNames[index];
+    });
+    this.setSeatingStatus("Игроки рассажены случайно");
+    this.onChange();
+    return true;
   }
 
   openNotes(record) {
@@ -205,6 +298,8 @@ export class PlayersController {
       faults: Number(record.row.dataset.faults),
       extra: record.extra.value,
       notes: record.notes,
+      isFirstKilled: record.isFirstKilled,
+      bestMoveBonus: record.isFirstKilled ? this.bestMoveBonus : 0,
     }));
   }
 
@@ -227,5 +322,6 @@ export class PlayersController {
       this.setFaultCount(record, Number.isInteger(faults) ? Math.min(MAX_FAULTS, Math.max(0, faults)) : 0);
       this.updatePlayerScore(record);
     });
+    this.setFirstKilled(null, false);
   }
 }

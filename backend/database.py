@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 ALLOWED_ROLES = {"Мирный", "Шериф", "Мафия", "Дон"}
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 class ValidationError(ValueError):
@@ -64,6 +64,7 @@ def normalize_game(value: object) -> dict:
 
     normalized_players = []
     seen_numbers = set()
+    first_killed_count = 0
     for player in players:
         if not isinstance(player, dict):
             raise ValidationError("Некорректные данные игрока")
@@ -74,6 +75,7 @@ def normalize_game(value: object) -> dict:
         base = score_number(player.get("base"), "Балл")
         extra = score_number(player.get("extra"), "Доп.")
         total = score_number(player.get("total"), "Сумма")
+        is_first_killed = player.get("isFirstKilled", False)
 
         if isinstance(number, bool) or not isinstance(number, int) or not 1 <= number <= 10:
             raise ValidationError("Номер игрока должен быть от 1 до 10")
@@ -87,8 +89,11 @@ def normalize_game(value: object) -> dict:
             raise ValidationError(f"Балл игрока {number} должен быть 0 или 1")
         if round(float(base) + float(extra), 2) != round(float(total), 2):
             raise ValidationError(f"Неверная сумма баллов игрока {number}")
+        if not isinstance(is_first_killed, bool):
+            raise ValidationError(f"Некорректная отметка ПУ игрока {number}")
 
         seen_numbers.add(number)
+        first_killed_count += int(is_first_killed)
         normalized_players.append({
             "number": number,
             "name": name,
@@ -96,10 +101,13 @@ def normalize_game(value: object) -> dict:
             "base": base,
             "extra": extra,
             "total": total,
+            "isFirstKilled": is_first_killed,
         })
 
     if seen_numbers != set(range(1, 11)):
         raise ValidationError("В игре должны быть номера игроков от 1 до 10")
+    if first_killed_count > 1:
+        raise ValidationError("В игре может быть только один первый убиенный")
 
     normalized_players.sort(key=lambda player: player["number"])
     return {
@@ -155,6 +163,7 @@ class GamesDatabase:
                     base_score REAL NOT NULL CHECK (base_score IN (0, 1)),
                     extra_score REAL NOT NULL,
                     total_score REAL NOT NULL,
+                    is_first_killed INTEGER NOT NULL DEFAULT 0 CHECK (is_first_killed IN (0, 1)),
                     PRIMARY KEY (game_id, player_number)
                 );
 
@@ -162,6 +171,16 @@ class GamesDatabase:
                 CREATE INDEX IF NOT EXISTS players_nickname_index ON players(nickname COLLATE NOCASE);
                 """
             )
+            player_columns = {
+                row["name"] for row in connection.execute("PRAGMA table_info(players)").fetchall()
+            }
+            if schema_version < 2 and "is_first_killed" not in player_columns:
+                connection.execute(
+                    """
+                    ALTER TABLE players ADD COLUMN is_first_killed INTEGER NOT NULL DEFAULT 0
+                    CHECK (is_first_killed IN (0, 1))
+                    """
+                )
             connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
 
     @staticmethod
@@ -176,13 +195,14 @@ class GamesDatabase:
         connection.executemany(
             """
             INSERT INTO players (
-                game_id, player_number, nickname, role, base_score, extra_score, total_score
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                game_id, player_number, nickname, role, base_score, extra_score, total_score,
+                is_first_killed
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             [
                 (
                     game["gameId"], player["number"], player["name"], player["role"],
-                    player["base"], player["extra"], player["total"],
+                    player["base"], player["extra"], player["total"], player["isFirstKilled"],
                 )
                 for player in game["players"]
             ],
@@ -195,7 +215,8 @@ class GamesDatabase:
             ).fetchall()
             player_rows = connection.execute(
                 """
-                SELECT game_id, player_number, nickname, role, base_score, extra_score, total_score
+                SELECT game_id, player_number, nickname, role, base_score, extra_score, total_score,
+                       is_first_killed
                 FROM players ORDER BY game_id, player_number
                 """
             ).fetchall()
@@ -209,6 +230,7 @@ class GamesDatabase:
                 "base": row["base_score"],
                 "extra": row["extra_score"],
                 "total": row["total_score"],
+                "isFirstKilled": bool(row["is_first_killed"]),
             })
 
         return [
