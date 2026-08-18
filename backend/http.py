@@ -9,6 +9,8 @@ from urllib.parse import unquote, urlparse
 
 from .database import DuplicateGameError, GamesDatabase, ValidationError
 
+API_VERSION = 1
+
 
 class MafiaRequestHandler(SimpleHTTPRequestHandler):
     server_version = "MafiaHost/1.0"
@@ -59,7 +61,10 @@ class MafiaRequestHandler(SimpleHTTPRequestHandler):
     def do_GET(self) -> None:
         route = urlparse(self.path).path
         if route == "/api/health":
-            self.send_json(HTTPStatus.OK, {"ok": True, "storage": "sqlite"})
+            self.send_json(
+                HTTPStatus.OK,
+                {"ok": True, "storage": "sqlite", "apiVersion": API_VERSION},
+            )
             return
         if route == "/api/games":
             try:
