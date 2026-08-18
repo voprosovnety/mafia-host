@@ -6,6 +6,7 @@ import {
   buildLeaderboard,
   buildGameSnapshot,
   calculateScores,
+  calculateTechnicalFoulPenalty,
   compareGamesChronologically,
   filterGamesByInterval,
   getGameId,
@@ -35,11 +36,20 @@ test("random seating shuffles a copy without losing players", () => {
 
 test("base score follows the role team and winner", () => {
   assert.deepEqual(calculateScores("Мирный", "0.6", "red"), {
-    team: "red", base: 1, extra: 0.6, lh: 0, ci: 0, total: 1.6,
+    team: "red", base: 1, extra: 0.6, lh: 0, ci: 0,
+    technicalFouls: 0, technicalPenalty: 0, total: 1.6,
   });
   assert.deepEqual(calculateScores("Дон", "-0.4", "red"), {
-    team: "black", base: 0, extra: -0.4, lh: 0, ci: 0, total: -0.4,
+    team: "black", base: 0, extra: -0.4, lh: 0, ci: 0,
+    technicalFouls: 0, technicalPenalty: 0, total: -0.4,
   });
+});
+
+test("each technical foul deducts 0.3 up to a maximum of two", () => {
+  assert.equal(calculateTechnicalFoulPenalty(0), 0);
+  assert.equal(calculateTechnicalFoulPenalty(1), -0.3);
+  assert.equal(calculateTechnicalFoulPenalty(2), -0.6);
+  assert.equal(calculateTechnicalFoulPenalty(3), -0.6);
 });
 
 test("best move awards 0.5 for two black roles and 0.8 for three", () => {
@@ -56,9 +66,10 @@ test("best move awards 0.5 for two black roles and 0.8 for three", () => {
   assert.equal(calculateBestMoveBonus([2, 3, 4], null), 0);
 });
 
-test("manual extra, best move and CI are separate score components", () => {
-  assert.deepEqual(calculateScores("Мирный", "0.2", "red", 0.5, 0.3), {
-    team: "red", base: 1, extra: 0.2, lh: 0.5, ci: 0.3, total: 2,
+test("manual extra, technical fouls, best move and CI are separate score components", () => {
+  assert.deepEqual(calculateScores("Мирный", "0.2", "red", 0.5, 0.3, 2), {
+    team: "red", base: 1, extra: 0.2, lh: 0.5, ci: 0.3,
+    technicalFouls: 2, technicalPenalty: -0.6, total: 1.4,
   });
   const snapshot = buildGameSnapshot([
     {
@@ -68,13 +79,21 @@ test("manual extra, best move and CI are separate score components", () => {
       extra: "-0.2",
       isFirstKilled: true,
       bestMoveBonus: 0.8,
+      technicalFouls: 1,
+      notes: "Проверить речь",
     },
-  ], "red", new Date("2026-08-17T12:00:00Z"));
+  ], "red", {
+    now: new Date("2026-08-17T12:00:00Z"),
+    bestMove: [2, 8, 10],
+  });
   assert.equal(snapshot.players[0].extra, -0.2);
   assert.equal(snapshot.players[0].lh, 0.8);
   assert.equal(snapshot.players[0].ci, 0);
-  assert.equal(snapshot.players[0].total, 1.6);
+  assert.equal(snapshot.players[0].technicalFouls, 1);
+  assert.equal(snapshot.players[0].total, 1.3);
+  assert.equal(snapshot.players[0].notes, "Проверить речь");
   assert.equal(snapshot.players[0].isFirstKilled, true);
+  assert.deepEqual(snapshot.bestMove, [2, 8, 10]);
 });
 
 test("a matching archived game recovers the first-killed marker from the current game", () => {
@@ -109,6 +128,10 @@ test("stable game id ignores metadata but changes with results", () => {
   }));
   assert.notEqual(getGameId(baseGame), getGameId({
     ...baseGame,
+    players: [{ ...baseGame.players[0], technicalFouls: 1, total: 0.7 }],
+  }));
+  assert.notEqual(getGameId(baseGame), getGameId({
+    ...baseGame,
     players: [{ ...baseGame.players[0], lh: 0.5, total: 1.5 }],
   }));
   assert.notEqual(getGameId(baseGame), getGameId({
@@ -123,17 +146,17 @@ test("leaderboard combines bonuses and penalties by normalized nickname", () => 
       { name: "Шляпа", extra: 0.6, total: 1.6 },
     ] }),
     game({ date: "02.08.2026", time: "10:00:00", players: [
-      { name: "  шляпа ", extra: -0.4, total: 0.6 },
+      { name: "  шляпа ", extra: -0.4, technicalFouls: 1, total: 0.3 },
     ] }),
   ];
   assert.deepEqual(buildLeaderboard(games)[0], {
     name: "Шляпа",
-    totalScore: 2.2,
-    netExtra: 0.2,
+    totalScore: 1.9,
+    netExtra: -0.1,
     bonuses: 0.6,
-    penalties: -0.4,
+    penalties: -0.7,
     gamesPlayed: 2,
-    average: 1.1,
+    average: 0.95,
   });
 });
 

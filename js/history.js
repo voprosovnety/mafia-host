@@ -1,9 +1,12 @@
 import {
+  calculateTechnicalFoulPenalty,
   dateFromInputValue,
   dateToInputValue,
   formatScore,
   gamesCountLabel,
   getGameId,
+  MAX_TECHNICAL_FAULTS,
+  normalizeTechnicalFouls,
   parseExtraScore,
   ROLE_OPTIONS,
   roundScore,
@@ -56,10 +59,16 @@ export function scoreBreakdownItems(player) {
   const extra = Number(player.extra) || 0;
   const lh = Number(player.lh) || 0;
   const ci = Number(player.ci) || 0;
+  const technicalFouls = normalizeTechnicalFouls(player.technicalFouls);
+  const technicalPenalty = calculateTechnicalFoulPenalty(technicalFouls);
 
   if (base !== 0) items.push({ label: "Победа", value: formatSignedScore(base) });
   if (extra > 0) items.push({ label: "Доп", value: formatSignedScore(extra) });
   if (extra < 0) items.push({ label: "Штраф", value: formatSignedScore(extra) });
+  if (technicalPenalty !== 0) {
+    const label = technicalFouls === 1 ? "Техфол" : `Техфол ×${technicalFouls}`;
+    items.push({ label, value: formatSignedScore(technicalPenalty) });
+  }
   if (lh !== 0) items.push({ label: "ЛХ", value: formatSignedScore(lh) });
   if (ci !== 0) items.push({ label: "CI", value: formatSignedScore(ci) });
   return items;
@@ -132,6 +141,19 @@ function createEditBaseSelect(baseScore) {
     select.append(option);
   });
   select.value = Number(baseScore) === 1 ? "1" : "0";
+  return select;
+}
+
+function createEditTechnicalFoulsSelect(technicalFouls) {
+  const select = document.createElement("select");
+  select.className = "edit-game-technical-fouls";
+  for (let count = 0; count <= MAX_TECHNICAL_FAULTS; count += 1) {
+    const option = document.createElement("option");
+    option.value = String(count);
+    option.textContent = String(count);
+    select.append(option);
+  }
+  select.value = String(Math.min(MAX_TECHNICAL_FAULTS, Math.max(0, Number(technicalFouls) || 0)));
   return select;
 }
 
@@ -271,16 +293,35 @@ export class HistoryView {
     const extra = parseExtraScore(row.extra.value);
     const valid = extra !== null && (base === 0 || base === 1);
     row.extra.classList.toggle("is-invalid", extra === null);
-    row.total.value = valid ? formatScore(base + extra + row.lh + row.ci) : "—";
+    const technicalPenalty = calculateTechnicalFoulPenalty(row.technicalFouls.value);
+    row.total.value = valid
+      ? formatScore(base + extra + row.lh + row.ci + technicalPenalty)
+      : "—";
     return valid;
   }
 
   openEditor(game) {
-    const { date, time, winner, body, error, dialog } = this.elements;
+    const { date, time, winner, bestMove, body, error, dialog } = this.elements;
     this.activeGame = game;
     date.value = dateToInputValue(game.date);
     time.value = game.time;
     winner.value = game.winner;
+    const firstKilledPlayer = game.players.find((player) => player.isFirstKilled === true);
+    const bestMoveNumbers = (Array.isArray(game.bestMove) ? game.bestMove : [])
+      .filter((number) => Number.isInteger(number));
+    if (firstKilledPlayer) {
+      const numbersLabel = bestMoveNumbers.length > 0
+        ? bestMoveNumbers.join(" · ")
+        : "номера не сохранены";
+      const bonusLabel = Number(firstKilledPlayer.lh)
+        ? ` · бонус ${formatSignedScore(firstKilledPlayer.lh)}`
+        : "";
+      bestMove.textContent = `ЛХ первого убиенного №${firstKilledPlayer.number}: ${numbersLabel}${bonusLabel}`;
+      bestMove.hidden = false;
+    } else {
+      bestMove.textContent = "";
+      bestMove.hidden = true;
+    }
     error.textContent = "";
     body.replaceChildren();
     this.playerRows = [];
@@ -313,6 +354,10 @@ export class HistoryView {
       extra.maxLength = 4;
       extra.value = formatScore(Number(player.extra));
       extraLabel.append(extra);
+      const technicalFoulsLabel = document.createElement("label");
+      technicalFoulsLabel.textContent = "Техфолы";
+      const technicalFouls = createEditTechnicalFoulsSelect(player.technicalFouls);
+      technicalFoulsLabel.append(technicalFouls);
       const storedComponents = document.createElement("span");
       storedComponents.className = "edit-game-stored-components";
       const storedParts = [];
@@ -322,8 +367,18 @@ export class HistoryView {
       const total = document.createElement("output");
       total.className = "edit-game-total";
       total.setAttribute("aria-label", `Итоговый балл игрока ${player.number}`);
-      scoreFields.append(baseLabel, extraLabel, storedComponents, total);
+      scoreFields.append(baseLabel, extraLabel, technicalFoulsLabel, storedComponents, total);
       scoreCell.append(scoreFields);
+
+      const notesCell = document.createElement("td");
+      const notes = document.createElement("textarea");
+      notes.className = "edit-game-notes";
+      notes.rows = 2;
+      notes.maxLength = 10000;
+      notes.value = typeof player.notes === "string" ? player.notes : "";
+      notes.placeholder = "Заметок нет";
+      notes.setAttribute("aria-label", `Заметки игрока ${player.number}`);
+      notesCell.append(notes);
 
       const row = {
         playerNumber: player.number,
@@ -332,15 +387,18 @@ export class HistoryView {
         role,
         base,
         extra,
+        technicalFouls,
         lh: Number(player.lh) || 0,
         ci: Number(player.ci) || 0,
+        notes,
         total,
       };
       base.addEventListener("change", () => this.updateEditedTotal(row));
       extra.addEventListener("input", () => this.updateEditedTotal(row));
+      technicalFouls.addEventListener("change", () => this.updateEditedTotal(row));
       this.playerRows.push(row);
       this.updateEditedTotal(row);
-      tableRow.append(nameCell, roleCell, scoreCell);
+      tableRow.append(nameCell, roleCell, scoreCell, notesCell);
       body.append(tableRow);
     });
 
@@ -377,15 +435,19 @@ export class HistoryView {
     updatedGame.players = this.playerRows.map((row) => {
       const base = Number(row.base.value);
       const extra = parseExtraScore(row.extra.value);
+      const technicalFouls = Number(row.technicalFouls.value);
+      const technicalPenalty = calculateTechnicalFoulPenalty(technicalFouls);
       return {
         number: row.playerNumber,
         name: row.name.value.trim(),
         role: row.role.value,
         base,
         extra,
+        technicalFouls,
         lh: row.lh,
         ci: row.ci,
-        total: roundScore(base + extra + row.lh + row.ci),
+        total: roundScore(base + extra + row.lh + row.ci + technicalPenalty),
+        notes: row.notes.value,
         isFirstKilled: row.isFirstKilled,
       };
     });

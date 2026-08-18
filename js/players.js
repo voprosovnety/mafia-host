@@ -2,6 +2,8 @@ import {
   calculateScores,
   formatScore,
   MAX_FAULTS,
+  MAX_TECHNICAL_FAULTS,
+  normalizeTechnicalFouls,
   PLAYER_COUNT,
   ROLE_OPTIONS,
   shuffledCopy,
@@ -54,6 +56,20 @@ export class PlayersController {
     });
   }
 
+  setTechnicalFaultCount(record, count) {
+    const normalizedCount = normalizeTechnicalFouls(count);
+    record.row.dataset.technicalFaults = String(normalizedCount);
+    record.technicalFaults.querySelectorAll(".technical-fault").forEach((button, index) => {
+      const filled = index < normalizedCount;
+      button.classList.toggle("is-filled", filled);
+      button.setAttribute("aria-pressed", String(filled));
+      button.setAttribute(
+        "aria-label",
+        `${index + 1}-й технический фол игрока ${record.number}: ${filled ? "поставлен" : "не поставлен"}`,
+      );
+    });
+  }
+
   createRoleSelect(playerNumber) {
     const role = document.createElement("select");
     role.className = "player-role";
@@ -76,6 +92,7 @@ export class PlayersController {
     row.className = "player-row";
     row.dataset.player = String(playerNumber);
     row.dataset.faults = "0";
+    row.dataset.technicalFaults = "0";
 
     const number = document.createElement("span");
     number.className = "player-number";
@@ -100,6 +117,10 @@ export class PlayersController {
     const faults = document.createElement("div");
     faults.className = "faults";
     faults.setAttribute("aria-label", `Фолы игрока ${playerNumber}`);
+
+    const technicalFaults = document.createElement("div");
+    technicalFaults.className = "technical-faults";
+    technicalFaults.setAttribute("aria-label", `Технические фолы игрока ${playerNumber}`);
 
     const nominate = document.createElement("button");
     nominate.className = "nominate-button";
@@ -138,6 +159,7 @@ export class PlayersController {
       name,
       role,
       faults,
+      technicalFaults,
       nominate,
       firstKilledBadge,
       base,
@@ -162,6 +184,23 @@ export class PlayersController {
       faults.append(fault);
     }
 
+    for (let faultNumber = 1; faultNumber <= MAX_TECHNICAL_FAULTS; faultNumber += 1) {
+      const technicalFault = document.createElement("button");
+      technicalFault.className = "technical-fault";
+      technicalFault.type = "button";
+      technicalFault.textContent = "Т";
+      technicalFault.dataset.technicalFault = String(faultNumber);
+      technicalFault.title = `Техфол ${faultNumber}: штраф −0.3`;
+      technicalFault.addEventListener("click", () => {
+        const currentCount = Number(row.dataset.technicalFaults);
+        const nextCount = faultNumber <= currentCount ? faultNumber - 1 : faultNumber;
+        this.setTechnicalFaultCount(record, nextCount);
+        this.updatePlayerScore(record);
+        this.onChange();
+      });
+      technicalFaults.append(technicalFault);
+    }
+
     name.addEventListener("input", () => {
       this.setSeatingStatus("");
       this.onChange();
@@ -178,15 +217,24 @@ export class PlayersController {
     notesButton.addEventListener("click", () => this.openNotes(record));
 
     this.records.push(record);
-    row.append(number, name, role, faults, nominate, base, extra, total, notesButton);
+    row.append(number, name, role, faults, technicalFaults, nominate, base, extra, total, notesButton);
     this.setFaultCount(record, 0);
+    this.setTechnicalFaultCount(record, 0);
     this.updatePlayerScore(record);
     return row;
   }
 
   updatePlayerScore(record) {
     const lh = record.isFirstKilled ? this.bestMoveBonus : 0;
-    const scores = calculateScores(record.role.value, record.extra.value, this.winner, lh);
+    const technicalFouls = Number(record.row.dataset.technicalFaults);
+    const scores = calculateScores(
+      record.role.value,
+      record.extra.value,
+      this.winner,
+      lh,
+      0,
+      technicalFouls,
+    );
     record.role.dataset.role = record.role.value;
     record.extra.classList.toggle("is-invalid", scores.extra === null);
     record.base.textContent = formatScore(scores.base);
@@ -235,6 +283,7 @@ export class PlayersController {
       record.notesButton.classList.remove("has-notes");
       record.notesButton.setAttribute("aria-label", `Открыть заметки игрока ${record.number}`);
       this.setFaultCount(record, 0);
+      this.setTechnicalFaultCount(record, 0);
       this.updatePlayerScore(record);
     });
     this.activeNotesRecord = null;
@@ -296,6 +345,7 @@ export class PlayersController {
       name: record.name.value,
       role: record.role.value,
       faults: Number(record.row.dataset.faults),
+      technicalFouls: Number(record.row.dataset.technicalFaults),
       extra: record.extra.value,
       notes: record.notes,
       isFirstKilled: record.isFirstKilled,
@@ -320,6 +370,13 @@ export class PlayersController {
       );
       const faults = Number(stored.faults);
       this.setFaultCount(record, Number.isInteger(faults) ? Math.min(MAX_FAULTS, Math.max(0, faults)) : 0);
+      const technicalFouls = Number(stored.technicalFouls);
+      this.setTechnicalFaultCount(
+        record,
+        Number.isInteger(technicalFouls)
+          ? Math.min(MAX_TECHNICAL_FAULTS, Math.max(0, technicalFouls))
+          : 0,
+      );
       this.updatePlayerScore(record);
     });
     this.setFirstKilled(null, false);
