@@ -1,5 +1,7 @@
 export const PLAYER_COUNT = 10;
 export const MAX_FAULTS = 4;
+export const MAX_TECHNICAL_FAULTS = 2;
+export const TECHNICAL_FAULT_PENALTY = -0.3;
 export const ROLE_OPTIONS = ["Мирный", "Шериф", "Мафия", "Дон"];
 
 export function shuffledCopy(items, random = Math.random) {
@@ -70,23 +72,52 @@ export function formatScore(score) {
   return score === null ? "—" : String(roundScore(score));
 }
 
-export function calculateScores(role, extraValue, winner, lhValue = 0, ciValue = 0) {
+export function normalizeTechnicalFouls(value) {
+  const count = Number(value);
+  if (!Number.isInteger(count)) return 0;
+  return Math.min(MAX_TECHNICAL_FAULTS, Math.max(0, count));
+}
+
+export function calculateTechnicalFoulPenalty(technicalFouls) {
+  return roundScore(normalizeTechnicalFouls(technicalFouls) * TECHNICAL_FAULT_PENALTY);
+}
+
+export function calculateScores(
+  role,
+  extraValue,
+  winner,
+  lhValue = 0,
+  ciValue = 0,
+  technicalFoulsValue = 0,
+) {
   const team = getRoleTeam(role);
   const base = winner && team ? Number(winner === team) : null;
   const extra = parseExtraScore(extraValue);
   const lh = Number.isFinite(Number(lhValue)) ? roundScore(Number(lhValue)) : 0;
   const ci = Number.isFinite(Number(ciValue)) ? roundScore(Number(ciValue)) : 0;
+  const technicalFouls = normalizeTechnicalFouls(technicalFoulsValue);
+  const technicalPenalty = calculateTechnicalFoulPenalty(technicalFouls);
   const total = base === null || extra === null
     ? null
-    : roundScore(base + extra + lh + ci);
-  return { team, base, extra, lh, ci, total };
+    : roundScore(base + extra + lh + ci + technicalPenalty);
+  return { team, base, extra, lh, ci, technicalFouls, technicalPenalty, total };
 }
 
 export function winnerLabel(winner) {
   return winner === "red" ? "Красные" : "Чёрные";
 }
 
-export function buildGameSnapshot(players, winner, now = new Date()) {
+export function buildGameSnapshot(
+  players,
+  winner,
+  nowOrOptions = new Date(),
+  legacyBestMove = [],
+) {
+  const options = nowOrOptions instanceof Date
+    ? { now: nowOrOptions, bestMove: legacyBestMove }
+    : (nowOrOptions || {});
+  const now = options.now instanceof Date ? options.now : new Date();
+  const storedBestMove = Array.isArray(options.bestMove) ? options.bestMove : [];
   const game = {
     id: now.toISOString(),
     date: now.toLocaleDateString("ru-RU"),
@@ -97,9 +128,20 @@ export function buildGameSnapshot(players, winner, now = new Date()) {
     }),
     winner,
     winnerLabel: winnerLabel(winner),
+    bestMove: [0, 1, 2].map((index) => {
+      const number = Number(storedBestMove[index]);
+      return Number.isInteger(number) && number >= 1 && number <= PLAYER_COUNT ? number : null;
+    }),
     players: players.map((player) => {
       const bestMoveBonus = player.isFirstKilled ? player.bestMoveBonus : 0;
-      const scores = calculateScores(player.role, player.extra, winner, bestMoveBonus);
+      const scores = calculateScores(
+        player.role,
+        player.extra,
+        winner,
+        bestMoveBonus,
+        0,
+        player.technicalFouls,
+      );
       return {
         number: player.number,
         name: player.name.trim() || `Игрок ${player.number}`,
@@ -108,7 +150,9 @@ export function buildGameSnapshot(players, winner, now = new Date()) {
         extra: scores.extra,
         lh: scores.lh,
         ci: scores.ci,
+        technicalFouls: scores.technicalFouls,
         total: scores.total,
+        notes: typeof player.notes === "string" ? player.notes : "",
         isFirstKilled: player.isFirstKilled === true,
       };
     }),
@@ -153,6 +197,8 @@ function gameContentFingerprint(game) {
       const common = `${player.number}:${player.name}:${player.role}:${player.base}:${player.extra}:${player.total}`;
       const lh = Number(player.lh) || 0;
       const ci = Number(player.ci) || 0;
+      const technicalFouls = normalizeTechnicalFouls(player.technicalFouls);
+      if (technicalFouls !== 0) return `${common}:${lh}:${ci}:tf:${technicalFouls}`;
       return lh === 0 && ci === 0 ? common : `${common}:${lh}:${ci}`;
     })
     .join("|");
@@ -305,13 +351,16 @@ export function buildLeaderboard(games) {
 
       const stats = players.get(key);
       const extra = Number(player.extra);
+      const technicalPenalty = calculateTechnicalFoulPenalty(player.technicalFouls);
       const total = Number(player.total);
       const safeExtra = Number.isFinite(extra) ? extra : 0;
       const safeTotal = Number.isFinite(total) ? total : 0;
       stats.totalScore += safeTotal;
       stats.netExtra += safeExtra;
+      stats.netExtra += technicalPenalty;
       stats.bonuses += Math.max(0, safeExtra);
       stats.penalties += Math.min(0, safeExtra);
+      stats.penalties += technicalPenalty;
       stats.gamesPlayed += 1;
     });
   });

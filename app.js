@@ -141,7 +141,9 @@ async function recoverCurrentGameFirstKilledMarker() {
   const playerState = players.getState();
   if (validateGame(playerState, currentWinner)) return false;
 
-  const currentSnapshot = buildGameSnapshot(playerState, currentWinner);
+  const currentSnapshot = buildGameSnapshot(playerState, currentWinner, {
+    bestMove: night.getState().bestMove,
+  });
   const savedIndex = savedGames.findIndex((game) => (
     getGameId(game) === getGameId(currentSnapshot)
   ));
@@ -167,6 +169,7 @@ const history = new HistoryView({
     date: document.querySelector("#edit-game-date"),
     time: document.querySelector("#edit-game-time"),
     winner: document.querySelector("#edit-game-winner"),
+    bestMove: document.querySelector("#edit-game-best-move"),
     body: document.querySelector("#edit-game-body"),
     error: document.querySelector("#edit-game-error"),
     cancelButton: document.querySelector("#cancel-edit-game"),
@@ -194,7 +197,7 @@ winnerButtons.forEach((button) => {
 
 newGameButton.addEventListener("click", () => {
   const confirmed = window.confirm(
-    "Начать новую игру? Роли, фолы, допы, заметки, таймер, ночи и голосования будут сброшены. Ники останутся на своих местах.",
+    "Начать новую игру? Роли, фолы, техфолы, допы, заметки, таймер, ночи и голосования будут сброшены. Ники останутся на своих местах.",
   );
   if (!confirmed) return;
 
@@ -215,7 +218,9 @@ saveGameButton.addEventListener("click", async () => {
     return;
   }
 
-  const game = buildGameSnapshot(playerState, currentWinner);
+  const game = buildGameSnapshot(playerState, currentWinner, {
+    bestMove: night.getState().bestMove,
+  });
   if (savedGames.some((savedGame) => getGameId(savedGame) === game.gameId)) {
     setStatus(saveStatus, `Эта игра уже сохранена — ID ${game.gameId}`, true);
     return;

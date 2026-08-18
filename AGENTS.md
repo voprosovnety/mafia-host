@@ -46,13 +46,14 @@ Keep modules aligned with these responsibilities. Prefer pure functions in `js/d
 - `Space` resets and starts the timer only on the `Игра` view and never while typing in an input, select, textarea, or editable element.
 - The reset timer button resets and stops the timer.
 - Each player has 0–4 faults; clicking a filled fault can reduce the count.
+- Each player has 0–2 technical faults; every technical fault deducts 0.3 from the total score, and clicking a filled technical fault can reduce the count.
 - Voting starts at round 0 and can be reset to an empty round 0.
 - A player killed in night N can still vote in round N−1 and becomes ineligible starting with round N; players eliminated by voting cannot vote in later stages.
 - When a voting stage leads to a revote, only the final stage in that revote chain exposes and stores the outcome.
 - Roles are selected from `Мирный`, `Шериф`, `Мафия`, and `Дон`.
 - The successful target of night 1 is the first-killed player; there is no separate manual first-killed control.
 - A miss in night 1 clears and disables all three best-move fields.
-- A first-killed player gets an automatic best-move bonus of 0.5 for two distinct black-role picks or 0.8 for three; it is added to the manual extra score.
+- A first-killed player gets an automatic best-move bonus of 0.5 for two distinct black-role picks or 0.8 for three; it is stored separately and included in the total score.
 - Current-game base scores are derived from role team and winning team. Other extra scores are entered manually.
 - Saved games support create, read, edit, and delete through `/api/games`.
 - Duplicate game IDs return HTTP 409 and must not create another record.
@@ -60,7 +61,7 @@ Keep modules aligned with these responsibilities. Prefer pure functions in `js/d
 
 ## Storage and safety
 
-Completed games live in SQLite schema version 3. Player scoring stores the base result, manual extra/penalty, best-move (ЛХ), reserved CI score, and total separately. The unfinished current game still lives in browser `localStorage` so rapid input does not generate server traffic. Legacy browser games may be migrated from the current origin by `js/storage.js`. Old `file://` IndexedDB data belongs to a different browser origin and must be recovered through `legacy-recovery.html`; legacy CSV files are imported by `server.py`.
+Completed games live in SQLite schema version 4. Player scoring stores the base result, manual extra/penalty, technical-foul count, best-move (ЛХ), reserved CI score, and total separately. Saved games also store player notes and the three best-move picks. The unfinished current game still lives in browser `localStorage` so rapid input does not generate server traffic. Legacy browser games may be migrated from the current origin by `js/storage.js`. Old `file://` IndexedDB data belongs to a different browser origin and must be recovered through `legacy-recovery.html`; legacy CSV files are imported by `server.py`.
 
 Never delete, overwrite, commit, or recreate `data/mafia-host.sqlite3` during routine development or tests. Tests must use temporary databases. Before changing the SQLite schema, add an explicit migration keyed by `PRAGMA user_version` and test upgrading an existing database.
 
