@@ -5,6 +5,7 @@ const CURRENT_GAME_STORAGE_KEY = "mafia-host-current-game-v1";
 const LEGACY_DATABASE_NAME = "mafia-host";
 const LEGACY_DATABASE_VERSION = 1;
 const LEGACY_STORE_NAME = "games";
+const REQUIRED_API_VERSION = 1;
 
 function apiBase() {
   return window.location.protocol === "file:"
@@ -12,10 +13,10 @@ function apiBase() {
     : "/api";
 }
 
-async function requestGamesApi(path = "", options = {}) {
+async function requestApi(path, options = {}) {
   let response;
   try {
-    response = await fetch(`${apiBase()}/games${path}`, {
+    response = await fetch(`${apiBase()}${path}`, {
       ...options,
       headers: options.body ? { "Content-Type": "application/json" } : undefined,
     });
@@ -36,6 +37,18 @@ async function requestGamesApi(path = "", options = {}) {
     throw error;
   }
   return payload;
+}
+
+function requestGamesApi(path = "", options = {}) {
+  return requestApi(`/games${path}`, options);
+}
+
+export function assertCompatibleServer(health) {
+  const apiVersion = Number(health?.apiVersion);
+  if (Number.isInteger(apiVersion) && apiVersion >= REQUIRED_API_VERSION) return;
+  throw new Error(
+    "Сервер приложения устарел. Закройте его окно и снова запустите start.command",
+  );
 }
 
 function loadLegacyLocalStorageGames() {
@@ -132,6 +145,8 @@ export class GamesRepository {
   }
 
   async initialize() {
+    const health = await requestApi("/health");
+    assertCompatibleServer(health);
     await this.migrateBrowserGames();
     return this.list();
   }

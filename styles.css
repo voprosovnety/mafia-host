@@ -1798,7 +1798,7 @@ kbd {
 
 .edit-game-table {
   width: 100%;
-  min-width: 62rem;
+  min-width: 65rem;
   border-collapse: collapse;
 }
 
@@ -1818,22 +1818,28 @@ kbd {
 
 .edit-game-table th:first-child,
 .edit-game-table td:first-child {
-  width: 22%;
+  width: 3rem;
+  text-align: center;
 }
 
 .edit-game-table th:nth-child(2),
 .edit-game-table td:nth-child(2) {
-  width: 8rem;
-  text-align: center;
+  width: 19%;
 }
 
 .edit-game-table th:nth-child(3),
 .edit-game-table td:nth-child(3) {
-  width: 43%;
+  width: 8rem;
+  text-align: center;
 }
 
 .edit-game-table th:nth-child(4),
 .edit-game-table td:nth-child(4) {
+  width: 43%;
+}
+
+.edit-game-table th:nth-child(5),
+.edit-game-table td:nth-child(5) {
   width: 27%;
 }
 
@@ -1845,6 +1851,14 @@ kbd {
   box-shadow: inset 3px 0 #4f9bc4;
   color: #a8ddf7;
   font-weight: 800;
+}
+
+.edit-game-player-number {
+  color: var(--muted);
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
 }
 
 .edit-game-name,

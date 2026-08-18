@@ -329,6 +329,8 @@ export class HistoryView {
     game.players.forEach((player) => {
       const tableRow = document.createElement("tr");
       tableRow.classList.toggle("is-first-killed", player.isFirstKilled === true);
+      const numberCell = createPlayerNumberCell(player.number);
+      numberCell.classList.add("edit-game-player-number");
       const nameCell = document.createElement("td");
       const name = document.createElement("input");
       name.className = "edit-game-name";
@@ -398,7 +400,7 @@ export class HistoryView {
       technicalFouls.addEventListener("change", () => this.updateEditedTotal(row));
       this.playerRows.push(row);
       this.updateEditedTotal(row);
-      tableRow.append(nameCell, roleCell, scoreCell, notesCell);
+      tableRow.append(numberCell, nameCell, roleCell, scoreCell, notesCell);
       body.append(tableRow);
     });
 
