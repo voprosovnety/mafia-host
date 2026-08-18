@@ -1302,28 +1302,33 @@ kbd {
 
 .history-table th,
 .history-table td {
-  height: 2.35rem;
-  padding: 0.42rem 0.32rem;
+  height: 2.65rem;
+  padding: 0.45rem 0.35rem;
   border-bottom: 1px solid var(--line);
   text-align: left;
-}
-
-.history-table th:nth-last-child(-n + 3),
-.history-table td:nth-last-child(-n + 3) {
-  width: 3.75rem;
-  text-align: right;
+  vertical-align: middle;
 }
 
 .history-table th:first-child,
 .history-table td:first-child {
-  width: 2.2rem;
+  width: 2.15rem;
   text-align: center;
+}
+
+.history-table th:nth-child(2),
+.history-table td:nth-child(2) {
+  width: auto;
 }
 
 .history-table th:nth-child(3),
 .history-table td:nth-child(3) {
   width: 5.5rem;
   text-align: center;
+}
+
+.history-table th:nth-child(4),
+.history-table td:nth-child(4) {
+  width: 4.5rem;
 }
 
 .history-table td:nth-child(2) {
@@ -1346,6 +1351,13 @@ kbd {
   box-shadow: inset 3px 0 #4f9bc4;
 }
 
+.history-player-number {
+  color: var(--muted);
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+
 .history-first-killed-badge {
   display: inline-block;
   margin-left: 0.45rem;
@@ -1366,9 +1378,122 @@ kbd {
   text-transform: uppercase;
 }
 
-.history-table td:nth-last-child(-n + 3) {
+.history-score-cell {
+  position: relative;
+  text-align: right;
+}
+
+.history-score-trigger {
+  min-width: 2.5rem;
+  padding: 0.22rem 0.15rem;
+  border: 0;
+  border-bottom: 1px dashed #687078;
+  border-radius: 0;
+  outline: none;
+  background: transparent;
+  color: var(--accent);
   font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 0.9rem;
+  font-weight: 900;
   font-variant-numeric: tabular-nums;
+  text-align: right;
+  cursor: help;
+}
+
+.history-score-trigger:hover,
+.history-score-trigger:focus-visible,
+.history-score-cell.is-open .history-score-trigger {
+  border-bottom-color: var(--accent);
+  color: var(--text);
+}
+
+.history-score-trigger:focus-visible {
+  box-shadow: 0 2px 0 var(--accent);
+}
+
+.history-score-popover {
+  position: absolute;
+  z-index: 20;
+  top: calc(50% + 1.15rem);
+  right: 0.3rem;
+  min-width: 9.5rem;
+  padding: 0.5rem 0.6rem;
+  visibility: hidden;
+  border: 1px solid #5d666f;
+  background: #11161a;
+  box-shadow: 0 0.6rem 1.4rem rgb(0 0 0 / 45%);
+  color: var(--text);
+  opacity: 0;
+  pointer-events: none;
+  text-align: left;
+  transform: translateY(-0.2rem);
+  transition: opacity 100ms ease, transform 100ms ease, visibility 100ms;
+}
+
+.history-score-popover::before {
+  content: "";
+  position: absolute;
+  right: 0.65rem;
+  bottom: 100%;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-top: 1px solid #5d666f;
+  border-left: 1px solid #5d666f;
+  background: #11161a;
+  transform: translateY(0.25rem) rotate(45deg);
+}
+
+.history-score-cell.is-open .history-score-popover {
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+@media (hover: hover) {
+  .history-score-cell:hover .history-score-popover {
+    visibility: visible;
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+  }
+}
+
+.history-score-breakdown {
+  display: grid;
+  gap: 0.28rem;
+  margin: 0;
+}
+
+.history-score-breakdown > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1rem;
+  align-items: baseline;
+}
+
+.history-score-breakdown dt {
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.history-score-breakdown dd {
+  margin: 0;
+  color: var(--text);
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.history-score-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.7rem;
+  white-space: nowrap;
 }
 
 .history-role {
@@ -1620,7 +1745,7 @@ kbd {
 
 .edit-game-table {
   width: 100%;
-  min-width: 48rem;
+  min-width: 38rem;
   border-collapse: collapse;
 }
 
@@ -1640,14 +1765,18 @@ kbd {
 
 .edit-game-table th:first-child,
 .edit-game-table td:first-child {
-  width: 2.5rem;
+  width: 32%;
+}
+
+.edit-game-table th:nth-child(2),
+.edit-game-table td:nth-child(2) {
+  width: 8rem;
   text-align: center;
 }
 
-.edit-game-table th:nth-last-child(-n + 3),
-.edit-game-table td:nth-last-child(-n + 3) {
-  width: 5rem;
-  text-align: center;
+.edit-game-table th:nth-child(3),
+.edit-game-table td:nth-child(3) {
+  width: 50%;
 }
 
 .edit-game-table tr.is-first-killed td {
@@ -1686,9 +1815,42 @@ kbd {
   text-align: center;
 }
 
+.edit-game-score-fields {
+  display: grid;
+  grid-template-columns: 4.25rem 6.5rem minmax(0, 1fr) auto;
+  gap: 0.4rem;
+  align-items: end;
+}
+
+.edit-game-score-fields label {
+  display: grid;
+  gap: 0.18rem;
+  color: var(--muted);
+  font-size: 0.52rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.edit-game-stored-components {
+  align-self: center;
+  color: #a8ddf7;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .edit-game-total {
   display: block;
+  align-self: center;
+  min-width: 3.5rem;
+  color: var(--accent);
   font-weight: 800;
+}
+
+.edit-game-total::before {
+  content: "= ";
 }
 
 .edit-game-error {

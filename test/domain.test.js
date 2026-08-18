@@ -35,10 +35,10 @@ test("random seating shuffles a copy without losing players", () => {
 
 test("base score follows the role team and winner", () => {
   assert.deepEqual(calculateScores("Мирный", "0.6", "red"), {
-    team: "red", base: 1, extra: 0.6, total: 1.6,
+    team: "red", base: 1, extra: 0.6, lh: 0, ci: 0, total: 1.6,
   });
   assert.deepEqual(calculateScores("Дон", "-0.4", "red"), {
-    team: "black", base: 0, extra: -0.4, total: -0.4,
+    team: "black", base: 0, extra: -0.4, lh: 0, ci: 0, total: -0.4,
   });
 });
 
@@ -56,9 +56,9 @@ test("best move awards 0.5 for two black roles and 0.8 for three", () => {
   assert.equal(calculateBestMoveBonus([2, 3, 4], null), 0);
 });
 
-test("best move bonus is added to manual extra for the first killed player", () => {
-  assert.deepEqual(calculateScores("Мирный", "0.2", "red", 0.5), {
-    team: "red", base: 1, extra: 0.7, total: 1.7,
+test("manual extra, best move and CI are separate score components", () => {
+  assert.deepEqual(calculateScores("Мирный", "0.2", "red", 0.5, 0.3), {
+    team: "red", base: 1, extra: 0.2, lh: 0.5, ci: 0.3, total: 2,
   });
   const snapshot = buildGameSnapshot([
     {
@@ -70,7 +70,9 @@ test("best move bonus is added to manual extra for the first killed player", () 
       bestMoveBonus: 0.8,
     },
   ], "red", new Date("2026-08-17T12:00:00Z"));
-  assert.equal(snapshot.players[0].extra, 0.6);
+  assert.equal(snapshot.players[0].extra, -0.2);
+  assert.equal(snapshot.players[0].lh, 0.8);
+  assert.equal(snapshot.players[0].ci, 0);
   assert.equal(snapshot.players[0].total, 1.6);
   assert.equal(snapshot.players[0].isFirstKilled, true);
 });
@@ -104,6 +106,14 @@ test("stable game id ignores metadata but changes with results", () => {
   assert.notEqual(getGameId(baseGame), getGameId({
     ...baseGame,
     players: [{ ...baseGame.players[0], extra: 0.2, total: 1.2 }],
+  }));
+  assert.notEqual(getGameId(baseGame), getGameId({
+    ...baseGame,
+    players: [{ ...baseGame.players[0], lh: 0.5, total: 1.5 }],
+  }));
+  assert.notEqual(getGameId(baseGame), getGameId({
+    ...baseGame,
+    players: [{ ...baseGame.players[0], ci: 0.2, total: 1.2 }],
   }));
 });
 

@@ -60,7 +60,7 @@ Keep modules aligned with these responsibilities. Prefer pure functions in `js/d
 
 ## Storage and safety
 
-Completed games live in SQLite schema version 2. The unfinished current game still lives in browser `localStorage` so rapid input does not generate server traffic. Legacy browser games may be migrated from the current origin by `js/storage.js`. Old `file://` IndexedDB data belongs to a different browser origin and must be recovered through `legacy-recovery.html`; legacy CSV files are imported by `server.py`.
+Completed games live in SQLite schema version 3. Player scoring stores the base result, manual extra/penalty, best-move (ЛХ), reserved CI score, and total separately. The unfinished current game still lives in browser `localStorage` so rapid input does not generate server traffic. Legacy browser games may be migrated from the current origin by `js/storage.js`. Old `file://` IndexedDB data belongs to a different browser origin and must be recovered through `legacy-recovery.html`; legacy CSV files are imported by `server.py`.
 
 Never delete, overwrite, commit, or recreate `data/mafia-host.sqlite3` during routine development or tests. Tests must use temporary databases. Before changing the SQLite schema, add an explicit migration keyed by `PRAGMA user_version` and test upgrading an existing database.
 

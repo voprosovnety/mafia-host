@@ -70,14 +70,16 @@ export function formatScore(score) {
   return score === null ? "—" : String(roundScore(score));
 }
 
-export function calculateScores(role, extraValue, winner, automaticExtra = 0) {
+export function calculateScores(role, extraValue, winner, lhValue = 0, ciValue = 0) {
   const team = getRoleTeam(role);
   const base = winner && team ? Number(winner === team) : null;
-  const manualExtra = parseExtraScore(extraValue);
-  const safeAutomaticExtra = Number.isFinite(Number(automaticExtra)) ? Number(automaticExtra) : 0;
-  const extra = manualExtra === null ? null : roundScore(manualExtra + safeAutomaticExtra);
-  const total = base === null || extra === null ? null : roundScore(base + extra);
-  return { team, base, extra, total };
+  const extra = parseExtraScore(extraValue);
+  const lh = Number.isFinite(Number(lhValue)) ? roundScore(Number(lhValue)) : 0;
+  const ci = Number.isFinite(Number(ciValue)) ? roundScore(Number(ciValue)) : 0;
+  const total = base === null || extra === null
+    ? null
+    : roundScore(base + extra + lh + ci);
+  return { team, base, extra, lh, ci, total };
 }
 
 export function winnerLabel(winner) {
@@ -104,6 +106,8 @@ export function buildGameSnapshot(players, winner, now = new Date()) {
         role: player.role.trim(),
         base: scores.base,
         extra: scores.extra,
+        lh: scores.lh,
+        ci: scores.ci,
         total: scores.total,
         isFirstKilled: player.isFirstKilled === true,
       };
@@ -145,7 +149,12 @@ export function isStoredGame(value) {
 
 function gameContentFingerprint(game) {
   const players = game.players
-    .map((player) => `${player.number}:${player.name}:${player.role}:${player.base}:${player.extra}:${player.total}`)
+    .map((player) => {
+      const common = `${player.number}:${player.name}:${player.role}:${player.base}:${player.extra}:${player.total}`;
+      const lh = Number(player.lh) || 0;
+      const ci = Number(player.ci) || 0;
+      return lh === 0 && ci === 0 ? common : `${common}:${lh}:${ci}`;
+    })
     .join("|");
   return `${game.winner}|${players}`;
 }

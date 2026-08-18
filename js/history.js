@@ -10,11 +10,7 @@ import {
   winnerLabel,
 } from "./domain.js";
 
-function createCell(value) {
-  const cell = document.createElement("td");
-  cell.textContent = String(value);
-  return cell;
-}
+let nextScorePopoverId = 0;
 
 function createRoleCell(role) {
   const cell = document.createElement("td");
@@ -23,6 +19,13 @@ function createRoleCell(role) {
   badge.dataset.role = role;
   badge.textContent = role;
   cell.append(badge);
+  return cell;
+}
+
+function createPlayerNumberCell(playerNumber) {
+  const cell = document.createElement("td");
+  cell.className = "history-player-number";
+  cell.textContent = String(playerNumber);
   return cell;
 }
 
@@ -37,6 +40,70 @@ function createPlayerNameCell(player) {
     badge.textContent = "ПУ";
     cell.append(badge);
   }
+  return cell;
+}
+
+function formatSignedScore(score) {
+  const value = Number(score);
+  if (value > 0) return `+${formatScore(value)}`;
+  if (value < 0) return `−${formatScore(Math.abs(value))}`;
+  return "0";
+}
+
+export function scoreBreakdownItems(player) {
+  const items = [];
+  const base = Number(player.base) || 0;
+  const extra = Number(player.extra) || 0;
+  const lh = Number(player.lh) || 0;
+  const ci = Number(player.ci) || 0;
+
+  if (base !== 0) items.push({ label: "Победа", value: formatSignedScore(base) });
+  if (extra > 0) items.push({ label: "Доп", value: formatSignedScore(extra) });
+  if (extra < 0) items.push({ label: "Штраф", value: formatSignedScore(extra) });
+  if (lh !== 0) items.push({ label: "ЛХ", value: formatSignedScore(lh) });
+  if (ci !== 0) items.push({ label: "CI", value: formatSignedScore(ci) });
+  return items;
+}
+
+function createScoreCell(player) {
+  const cell = document.createElement("td");
+  cell.className = "history-score-cell";
+  const trigger = document.createElement("button");
+  trigger.className = "history-score-trigger";
+  trigger.type = "button";
+  trigger.textContent = formatScore(player.total);
+  trigger.setAttribute("aria-label", `Общий балл ${formatScore(player.total)}. Показать состав`);
+  trigger.setAttribute("aria-expanded", "false");
+  trigger.setAttribute("aria-haspopup", "true");
+
+  const popover = document.createElement("div");
+  nextScorePopoverId += 1;
+  popover.id = `history-score-popover-${nextScorePopoverId}`;
+  popover.className = "history-score-popover";
+  popover.setAttribute("role", "tooltip");
+  trigger.setAttribute("aria-describedby", popover.id);
+  const items = scoreBreakdownItems(player);
+  if (items.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "history-score-empty";
+    empty.textContent = "Нет начислений";
+    popover.append(empty);
+  } else {
+    const breakdown = document.createElement("dl");
+    breakdown.className = "history-score-breakdown";
+    items.forEach((item) => {
+      const row = document.createElement("div");
+      const label = document.createElement("dt");
+      label.textContent = item.label;
+      const value = document.createElement("dd");
+      value.textContent = item.value;
+      row.append(label, value);
+      breakdown.append(row);
+    });
+    popover.append(breakdown);
+  }
+
+  cell.append(trigger, popover);
   return cell;
 }
 
@@ -76,14 +143,51 @@ export class HistoryView {
     this.onGamesChanged = onGamesChanged;
     this.setStatus = setStatus;
     this.activeGame = null;
+    this.activeScoreTrigger = null;
     this.playerRows = [];
 
     elements.cancelButton.addEventListener("click", () => this.closeEditor());
     elements.form.addEventListener("submit", (event) => this.saveEditedGame(event));
+    elements.list.addEventListener("click", (event) => this.handleScorePopoverClick(event));
+    document.addEventListener("click", (event) => {
+      if (!elements.list.contains(event.target)) this.closeScorePopover();
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") this.closeScorePopover(true);
+    });
+  }
+
+  closeScorePopover(restoreFocus = false) {
+    if (!this.activeScoreTrigger) return;
+    const trigger = this.activeScoreTrigger;
+    trigger.closest(".history-score-cell")?.classList.remove("is-open");
+    trigger.setAttribute("aria-expanded", "false");
+    this.activeScoreTrigger = null;
+    if (restoreFocus) trigger.focus();
+  }
+
+  handleScorePopoverClick(event) {
+    const trigger = event.target.closest(".history-score-trigger");
+    if (!trigger) {
+      this.closeScorePopover();
+      return;
+    }
+
+    const shouldOpen = trigger !== this.activeScoreTrigger;
+    this.closeScorePopover();
+    if (!shouldOpen) {
+      trigger.blur();
+      return;
+    }
+
+    trigger.closest(".history-score-cell")?.classList.add("is-open");
+    trigger.setAttribute("aria-expanded", "true");
+    this.activeScoreTrigger = trigger;
   }
 
   render(games) {
     const { list, empty, count } = this.elements;
+    this.closeScorePopover();
     list.replaceChildren();
 
     [...games].reverse().forEach((game) => {
@@ -134,7 +238,7 @@ export class HistoryView {
       table.className = "history-table";
       const tableHead = document.createElement("thead");
       const headingRow = document.createElement("tr");
-      ["№", "Игрок", "Роль", "Балл", "Доп.", "Сумма"].forEach((heading) => {
+      ["№", "Ник", "Роль", "Балл"].forEach((heading) => {
         const cell = document.createElement("th");
         cell.textContent = heading;
         headingRow.append(cell);
@@ -145,12 +249,10 @@ export class HistoryView {
         const row = document.createElement("tr");
         row.classList.toggle("is-first-killed", player.isFirstKilled === true);
         row.append(
-          createCell(player.number),
+          createPlayerNumberCell(player.number),
           createPlayerNameCell(player),
           createRoleCell(player.role),
-          createCell(formatScore(player.base)),
-          createCell(formatScore(player.extra)),
-          createCell(formatScore(player.total)),
+          createScoreCell(player),
         );
         tableBody.append(row);
       });
@@ -169,7 +271,7 @@ export class HistoryView {
     const extra = parseExtraScore(row.extra.value);
     const valid = extra !== null && (base === 0 || base === 1);
     row.extra.classList.toggle("is-invalid", extra === null);
-    row.total.value = valid ? formatScore(base + extra) : "—";
+    row.total.value = valid ? formatScore(base + extra + row.lh + row.ci) : "—";
     return valid;
   }
 
@@ -186,7 +288,6 @@ export class HistoryView {
     game.players.forEach((player) => {
       const tableRow = document.createElement("tr");
       tableRow.classList.toggle("is-first-killed", player.isFirstKilled === true);
-      const number = createCell(player.number);
       const nameCell = document.createElement("td");
       const name = document.createElement("input");
       name.className = "edit-game-name";
@@ -196,21 +297,33 @@ export class HistoryView {
       const roleCell = document.createElement("td");
       const role = createEditRoleSelect(player.role);
       roleCell.append(role);
-      const baseCell = document.createElement("td");
+      const scoreCell = document.createElement("td");
+      const scoreFields = document.createElement("div");
+      scoreFields.className = "edit-game-score-fields";
+      const baseLabel = document.createElement("label");
+      baseLabel.textContent = "0/1";
       const base = createEditBaseSelect(player.base);
-      baseCell.append(base);
-      const extraCell = document.createElement("td");
+      baseLabel.append(base);
+      const extraLabel = document.createElement("label");
+      extraLabel.textContent = "Доп./штраф";
       const extra = document.createElement("input");
       extra.className = "edit-game-extra";
       extra.type = "text";
       extra.inputMode = "decimal";
       extra.maxLength = 4;
       extra.value = formatScore(Number(player.extra));
-      extraCell.append(extra);
-      const totalCell = document.createElement("td");
+      extraLabel.append(extra);
+      const storedComponents = document.createElement("span");
+      storedComponents.className = "edit-game-stored-components";
+      const storedParts = [];
+      if (Number(player.lh)) storedParts.push(`${formatSignedScore(player.lh)} ЛХ`);
+      if (Number(player.ci)) storedParts.push(`${formatSignedScore(player.ci)} CI`);
+      storedComponents.textContent = storedParts.join(" · ");
       const total = document.createElement("output");
       total.className = "edit-game-total";
-      totalCell.append(total);
+      total.setAttribute("aria-label", `Итоговый балл игрока ${player.number}`);
+      scoreFields.append(baseLabel, extraLabel, storedComponents, total);
+      scoreCell.append(scoreFields);
 
       const row = {
         playerNumber: player.number,
@@ -219,13 +332,15 @@ export class HistoryView {
         role,
         base,
         extra,
+        lh: Number(player.lh) || 0,
+        ci: Number(player.ci) || 0,
         total,
       };
       base.addEventListener("change", () => this.updateEditedTotal(row));
       extra.addEventListener("input", () => this.updateEditedTotal(row));
       this.playerRows.push(row);
       this.updateEditedTotal(row);
-      tableRow.append(number, nameCell, roleCell, baseCell, extraCell, totalCell);
+      tableRow.append(nameCell, roleCell, scoreCell);
       body.append(tableRow);
     });
 
@@ -268,7 +383,9 @@ export class HistoryView {
         role: row.role.value,
         base,
         extra,
-        total: roundScore(base + extra),
+        lh: row.lh,
+        ci: row.ci,
+        total: roundScore(base + extra + row.lh + row.ci),
         isFirstKilled: row.isFirstKilled,
       };
     });
