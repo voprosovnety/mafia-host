@@ -1311,21 +1311,27 @@ kbd {
 
 .history-table th:first-child,
 .history-table td:first-child {
-  width: auto;
+  width: 2.15rem;
+  text-align: center;
 }
 
 .history-table th:nth-child(2),
 .history-table td:nth-child(2) {
-  width: 5.5rem;
-  text-align: center;
+  width: auto;
 }
 
 .history-table th:nth-child(3),
 .history-table td:nth-child(3) {
+  width: 5.5rem;
+  text-align: center;
+}
+
+.history-table th:nth-child(4),
+.history-table td:nth-child(4) {
   width: 4.5rem;
 }
 
-.history-table td:first-child {
+.history-table td:nth-child(2) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1335,13 +1341,21 @@ kbd {
   background: #173246;
 }
 
-.history-table tr.is-first-killed td:first-child {
+.history-table tr.is-first-killed td:first-child,
+.history-table tr.is-first-killed td:nth-child(2) {
   color: #a8ddf7;
   font-weight: 800;
 }
 
 .history-table tr.is-first-killed td:first-child {
   box-shadow: inset 3px 0 #4f9bc4;
+}
+
+.history-player-number {
+  color: var(--muted);
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .history-first-killed-badge {

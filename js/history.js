@@ -22,6 +22,13 @@ function createRoleCell(role) {
   return cell;
 }
 
+function createPlayerNumberCell(playerNumber) {
+  const cell = document.createElement("td");
+  cell.className = "history-player-number";
+  cell.textContent = String(playerNumber);
+  return cell;
+}
+
 function createPlayerNameCell(player) {
   const cell = document.createElement("td");
   const name = document.createElement("span");
@@ -231,7 +238,7 @@ export class HistoryView {
       table.className = "history-table";
       const tableHead = document.createElement("thead");
       const headingRow = document.createElement("tr");
-      ["Ник", "Роль", "Балл"].forEach((heading) => {
+      ["№", "Ник", "Роль", "Балл"].forEach((heading) => {
         const cell = document.createElement("th");
         cell.textContent = heading;
         headingRow.append(cell);
@@ -242,6 +249,7 @@ export class HistoryView {
         const row = document.createElement("tr");
         row.classList.toggle("is-first-killed", player.isFirstKilled === true);
         row.append(
+          createPlayerNumberCell(player.number),
           createPlayerNameCell(player),
           createRoleCell(player.role),
           createScoreCell(player),
