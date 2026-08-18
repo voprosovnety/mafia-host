@@ -185,8 +185,8 @@ export class PlayersController {
   }
 
   updatePlayerScore(record) {
-    const automaticExtra = record.isFirstKilled ? this.bestMoveBonus : 0;
-    const scores = calculateScores(record.role.value, record.extra.value, this.winner, automaticExtra);
+    const lh = record.isFirstKilled ? this.bestMoveBonus : 0;
+    const scores = calculateScores(record.role.value, record.extra.value, this.winner, lh);
     record.role.dataset.role = record.role.value;
     record.extra.classList.toggle("is-invalid", scores.extra === null);
     record.base.textContent = formatScore(scores.base);
@@ -194,8 +194,8 @@ export class PlayersController {
     record.base.classList.toggle("has-value", scores.base !== null);
     record.base.classList.toggle("is-winner", scores.base === 1);
     record.total.classList.toggle("has-value", scores.total !== null);
-    record.extra.title = automaticExtra > 0
-      ? `Ручной доп.; бонус ЛХ +${automaticExtra}`
+    record.extra.title = lh > 0
+      ? `Ручной доп.; бонус ЛХ +${lh}`
       : "Ручной дополнительный балл";
   }
 

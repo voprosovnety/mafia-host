@@ -10,12 +10,6 @@ import {
   winnerLabel,
 } from "./domain.js";
 
-function createCell(value) {
-  const cell = document.createElement("td");
-  cell.textContent = String(value);
-  return cell;
-}
-
 function createRoleCell(role) {
   const cell = document.createElement("td");
   const badge = document.createElement("span");
@@ -37,6 +31,62 @@ function createPlayerNameCell(player) {
     badge.textContent = "ПУ";
     cell.append(badge);
   }
+  return cell;
+}
+
+function formatSignedScore(score) {
+  const value = Number(score);
+  if (value > 0) return `+${formatScore(value)}`;
+  if (value < 0) return `−${formatScore(Math.abs(value))}`;
+  return "0";
+}
+
+function createScorePart(value, label, className = "") {
+  const part = document.createElement("span");
+  part.className = `history-score-part ${className}`.trim();
+  const score = document.createElement("strong");
+  score.textContent = value;
+  const caption = document.createElement("span");
+  caption.textContent = label;
+  part.append(score, caption);
+  return part;
+}
+
+function createScoreCell(player) {
+  const cell = document.createElement("td");
+  cell.className = "history-score-cell";
+  const formula = document.createElement("div");
+  formula.className = "history-score-formula";
+  formula.append(createScorePart(
+    formatScore(player.base),
+    Number(player.base) === 1 ? "победа" : "поражение",
+    "is-base",
+  ));
+
+  const extra = Number(player.extra) || 0;
+  if (extra !== 0) {
+    formula.append(createScorePart(
+      formatSignedScore(extra),
+      extra > 0 ? "доп" : "штраф",
+      extra > 0 ? "is-bonus" : "is-penalty",
+    ));
+  }
+
+  const lh = Number(player.lh) || 0;
+  if (lh !== 0) {
+    formula.append(createScorePart(formatSignedScore(lh), "ЛХ", "is-lh"));
+  }
+
+  const ci = Number(player.ci) || 0;
+  if (ci !== 0) {
+    formula.append(createScorePart(formatSignedScore(ci), "CI", "is-ci"));
+  }
+
+  const total = document.createElement("span");
+  total.className = "history-score-total";
+  total.textContent = `= ${formatScore(player.total)}`;
+  formula.append(total);
+  cell.append(formula);
   return cell;
 }
 
@@ -134,7 +184,7 @@ export class HistoryView {
       table.className = "history-table";
       const tableHead = document.createElement("thead");
       const headingRow = document.createElement("tr");
-      ["№", "Игрок", "Роль", "Балл", "Доп.", "Сумма"].forEach((heading) => {
+      ["Ник", "Роль", "Балл"].forEach((heading) => {
         const cell = document.createElement("th");
         cell.textContent = heading;
         headingRow.append(cell);
@@ -145,12 +195,9 @@ export class HistoryView {
         const row = document.createElement("tr");
         row.classList.toggle("is-first-killed", player.isFirstKilled === true);
         row.append(
-          createCell(player.number),
           createPlayerNameCell(player),
           createRoleCell(player.role),
-          createCell(formatScore(player.base)),
-          createCell(formatScore(player.extra)),
-          createCell(formatScore(player.total)),
+          createScoreCell(player),
         );
         tableBody.append(row);
       });
@@ -169,7 +216,7 @@ export class HistoryView {
     const extra = parseExtraScore(row.extra.value);
     const valid = extra !== null && (base === 0 || base === 1);
     row.extra.classList.toggle("is-invalid", extra === null);
-    row.total.value = valid ? formatScore(base + extra) : "—";
+    row.total.value = valid ? formatScore(base + extra + row.lh + row.ci) : "—";
     return valid;
   }
 
@@ -186,7 +233,6 @@ export class HistoryView {
     game.players.forEach((player) => {
       const tableRow = document.createElement("tr");
       tableRow.classList.toggle("is-first-killed", player.isFirstKilled === true);
-      const number = createCell(player.number);
       const nameCell = document.createElement("td");
       const name = document.createElement("input");
       name.className = "edit-game-name";
@@ -196,21 +242,33 @@ export class HistoryView {
       const roleCell = document.createElement("td");
       const role = createEditRoleSelect(player.role);
       roleCell.append(role);
-      const baseCell = document.createElement("td");
+      const scoreCell = document.createElement("td");
+      const scoreFields = document.createElement("div");
+      scoreFields.className = "edit-game-score-fields";
+      const baseLabel = document.createElement("label");
+      baseLabel.textContent = "0/1";
       const base = createEditBaseSelect(player.base);
-      baseCell.append(base);
-      const extraCell = document.createElement("td");
+      baseLabel.append(base);
+      const extraLabel = document.createElement("label");
+      extraLabel.textContent = "Доп./штраф";
       const extra = document.createElement("input");
       extra.className = "edit-game-extra";
       extra.type = "text";
       extra.inputMode = "decimal";
       extra.maxLength = 4;
       extra.value = formatScore(Number(player.extra));
-      extraCell.append(extra);
-      const totalCell = document.createElement("td");
+      extraLabel.append(extra);
+      const storedComponents = document.createElement("span");
+      storedComponents.className = "edit-game-stored-components";
+      const storedParts = [];
+      if (Number(player.lh)) storedParts.push(`${formatSignedScore(player.lh)} ЛХ`);
+      if (Number(player.ci)) storedParts.push(`${formatSignedScore(player.ci)} CI`);
+      storedComponents.textContent = storedParts.join(" · ");
       const total = document.createElement("output");
       total.className = "edit-game-total";
-      totalCell.append(total);
+      total.setAttribute("aria-label", `Итоговый балл игрока ${player.number}`);
+      scoreFields.append(baseLabel, extraLabel, storedComponents, total);
+      scoreCell.append(scoreFields);
 
       const row = {
         playerNumber: player.number,
@@ -219,13 +277,15 @@ export class HistoryView {
         role,
         base,
         extra,
+        lh: Number(player.lh) || 0,
+        ci: Number(player.ci) || 0,
         total,
       };
       base.addEventListener("change", () => this.updateEditedTotal(row));
       extra.addEventListener("input", () => this.updateEditedTotal(row));
       this.playerRows.push(row);
       this.updateEditedTotal(row);
-      tableRow.append(number, nameCell, roleCell, baseCell, extraCell, totalCell);
+      tableRow.append(nameCell, roleCell, scoreCell);
       body.append(tableRow);
     });
 
@@ -268,7 +328,9 @@ export class HistoryView {
         role: row.role.value,
         base,
         extra,
-        total: roundScore(base + extra),
+        lh: row.lh,
+        ci: row.ci,
+        total: roundScore(base + extra + row.lh + row.ci),
         isFirstKilled: row.isFirstKilled,
       };
     });
