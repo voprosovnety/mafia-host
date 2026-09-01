@@ -7,10 +7,12 @@ import {
   formatVoterSequence,
   groupVotingStages,
   ineligibleVotersForStage,
+  isThreeWayTieAmongNine,
   normalizeVotingStages,
   parseVoterSequence,
   removeVoterChoices,
   roundOutcomeSummary,
+  requiresTieBreak,
   setNominationVoters,
   setVoterChoice,
   stageHasFollowingRevote,
@@ -293,7 +295,7 @@ test("controller stores a unique automatic winner", () => {
   assert.equal(controller.rounds.length, 1);
 });
 
-test("controller creates repeated revotes inside the same numbered round", () => {
+test("a repeated tie in the first revote waits for the host's tie-break choice", () => {
   const controller = automaticController([{
     kind: "round",
     roundNumber: 3,
@@ -310,19 +312,80 @@ test("controller creates repeated revotes inside the same numbered round", () =>
 
   controller.rounds[1].nominations[0].voters = [1, 2, 3, 4, 5];
   controller.rounds[1].nominations[1].voters = [6, 7, 8, 9, 10];
-  assert.equal(controller.synchronizeResolution(1), true);
-  assert.equal(controller.rounds[2].kind, "revote");
-  assert.equal(controller.rounds[2].roundNumber, 3);
-  assert.equal(controller.rounds[2].revoteNumber, 2);
+  assert.equal(controller.synchronizeResolution(1), false);
+  assert.equal(controller.rounds.length, 2);
+  const analysis = analyzeVotingStage(controller.rounds[1]);
+  assert.equal(requiresTieBreak(controller.rounds, 1, analysis), true);
   assert.deepEqual(groupVotingStages(controller.rounds), [
-    { roundNumber: 3, stageIndexes: [0, 1, 2] },
+    { roundNumber: 3, stageIndexes: [0, 1] },
   ]);
 
-  controller.rounds[2].nominations[0].voters = [1, 2, 3, 4, 5, 6];
-  controller.rounds[2].nominations[1].voters = [7, 8, 9, 10];
-  assert.equal(controller.synchronizeResolution(2), false);
-  assert.deepEqual(controller.rounds[2].eliminatedPlayers, [2]);
-  assert.equal(roundOutcomeSummary(controller.rounds, [0, 1, 2]), "Покинул игру: 2");
+  controller.renderStage = () => {};
+  controller.updateNextButton = () => {};
+  controller.onChange = () => {};
+  controller.resolveTieBreak(1, "lift");
+  assert.deepEqual(controller.rounds[1].eliminatedPlayers, [2, 5]);
+  assert.equal(controller.rounds[1].tieBreakChoice, "lift");
+  assert.equal(roundOutcomeSummary(controller.rounds, [0, 1]), "Покинули игру: 2, 5");
+});
+
+test("the host can keep everyone after a repeated tie in the first revote", () => {
+  const controller = automaticController([
+    {
+      kind: "round",
+      roundNumber: 3,
+      nominations: [
+        { playerNumber: 2, voters: [1, 2, 3, 4, 5] },
+        { playerNumber: 5, voters: [6, 7, 8, 9, 10] },
+      ],
+      revoteCandidates: [2, 5],
+    },
+    {
+      kind: "revote",
+      roundNumber: 3,
+      revoteNumber: 1,
+      nominations: [
+        { playerNumber: 2, voters: [1, 2, 3, 4, 5] },
+        { playerNumber: 5, voters: [6, 7, 8, 9, 10] },
+      ],
+    },
+  ]);
+  controller.renderStage = () => {};
+  controller.updateNextButton = () => {};
+  controller.onChange = () => {};
+
+  controller.resolveTieBreak(1, "nobody");
+
+  assert.deepEqual(controller.rounds[1].eliminatedPlayers, []);
+  assert.equal(controller.rounds[1].noElimination, true);
+  assert.equal(controller.rounds[1].tieBreakChoice, "nobody");
+  assert.equal(roundOutcomeSummary(controller.rounds, [0, 1]), "Никто не покинул");
+});
+
+test("a repeated three-way tie among nine voters ends without a lift choice", () => {
+  const controller = automaticController([{
+    kind: "round",
+    roundNumber: 3,
+    nominations: [
+      { playerNumber: 2, voters: [1, 2, 3] },
+      { playerNumber: 5, voters: [4, 5, 6] },
+      { playerNumber: 8, voters: [7, 8, 9] },
+    ],
+  }]);
+  controller.killedFromRound = new Map([[10, 1]]);
+
+  assert.equal(controller.synchronizeResolution(0), true);
+  controller.rounds[1].nominations[0].voters = [1, 2, 3];
+  controller.rounds[1].nominations[1].voters = [4, 5, 6];
+  controller.rounds[1].nominations[2].voters = [7, 8, 9];
+
+  const analysis = analyzeVotingStage(controller.rounds[1], controller.getIneligibleVoters(1));
+  assert.equal(requiresTieBreak(controller.rounds, 1, analysis), true);
+  assert.equal(isThreeWayTieAmongNine(analysis), true);
+  assert.equal(controller.synchronizeResolution(1), false);
+  assert.equal(controller.rounds.length, 2);
+  assert.equal(controller.rounds[1].noElimination, true);
+  assert.equal(controller.rounds[1].tieBreakChoice, null);
 });
 
 test("removing the last vote clears an automatic outcome", () => {

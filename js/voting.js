@@ -8,6 +8,13 @@ function uniquePlayerNumbers(numbers) {
   return [...new Set((Array.isArray(numbers) ? numbers : []).filter(isPlayerNumber))];
 }
 
+function samePlayerNumbers(first, second) {
+  const firstNumbers = uniquePlayerNumbers(first).sort((left, right) => left - right);
+  const secondNumbers = uniquePlayerNumbers(second).sort((left, right) => left - right);
+  return firstNumbers.length === secondNumbers.length
+    && firstNumbers.every((playerNumber, index) => playerNumber === secondNumbers[index]);
+}
+
 function normalizeNominations(value) {
   const nominations = Array.isArray(value) ? value : [];
   const seen = new Set();
@@ -35,6 +42,7 @@ function emptyRound(roundNumber) {
     revoteCandidates: [],
     eliminatedPlayers: [],
     noElimination: false,
+    tieBreakChoice: null,
   };
 }
 
@@ -75,12 +83,16 @@ export function normalizeVotingStages(rounds) {
         : uniquePlayerNumbers(round?.eliminatedPlayers)
           .filter((number) => nomineeNumbers.has(number)),
       noElimination,
+      tieBreakChoice: round?.tieBreakChoice === "lift" || round?.tieBreakChoice === "nobody"
+        ? round.tieBreakChoice
+        : null,
     };
   });
   stages.forEach((stage, stageIndex) => {
     if (stageHasFollowingRevote(stages, stageIndex)) {
       stage.eliminatedPlayers = [];
       stage.noElimination = false;
+      stage.tieBreakChoice = null;
     }
   });
   return stages;
@@ -151,6 +163,21 @@ export function analyzeVotingStage(stage, ineligibleVoters = new Set()) {
     .map(({ playerNumber }) => playerNumber);
   result.status = result.leaders.length === 1 ? "winner" : "tie";
   return result;
+}
+
+export function requiresTieBreak(stages, stageIndex, analysis) {
+  const stage = stages[stageIndex];
+  const previousStage = stages[stageIndex - 1];
+  return analysis?.status === "tie"
+    && stage?.kind === "revote"
+    && stage.revoteNumber === 1
+    && previousStage?.kind === "round"
+    && previousStage.roundNumber === stage.roundNumber
+    && samePlayerNumbers(previousStage.revoteCandidates, analysis.leaders);
+}
+
+export function isThreeWayTieAmongNine(analysis) {
+  return analysis?.eligibleCount === 9 && analysis.leaders.length === 3;
 }
 
 export function roundOutcomeSummary(stages, stageIndexes) {
@@ -260,6 +287,7 @@ export function buildRevoteStage(sourceStage, candidates = sourceStage.revoteCan
     revoteCandidates: [],
     eliminatedPlayers: [],
     noElimination: false,
+    tieBreakChoice: null,
   };
 }
 
@@ -356,9 +384,11 @@ export class VotingController {
     nominees.className = "nominees";
     const status = document.createElement("p");
     status.className = "voting-stage-status";
-    stageElement.append(header, nominees, status);
+    const tieBreak = document.createElement("div");
+    tieBreak.className = "voting-tie-break";
+    stageElement.append(header, nominees, status, tieBreak);
     stages.append(stageElement);
-    this.stageElements[stageIndex] = { stageElement, nominees, voteCount, status };
+    this.stageElements[stageIndex] = { stageElement, nominees, voteCount, status, tieBreak };
     this.renderStage(stageIndex);
   }
 
@@ -489,6 +519,14 @@ export class VotingController {
     target.voteCount.textContent = `${analysis.assignedCount}/${analysis.eligibleCount} голосов`;
     target.status.textContent = this.stageStatusText(roundIndex, analysis);
     target.status.hidden = target.status.textContent.length === 0;
+    target.tieBreak.replaceChildren();
+    if (
+      requiresTieBreak(this.rounds, roundIndex, analysis)
+      && !isThreeWayTieAmongNine(analysis)
+      && !stage.tieBreakChoice
+    ) {
+      target.tieBreak.append(this.createTieBreakActions(roundIndex, analysis));
+    }
 
     if (stage.nominations.length === 0) {
       const empty = document.createElement("span");
@@ -520,11 +558,39 @@ export class VotingController {
     if (stage.eliminatedPlayers.length > 1) {
       return `Игроки ${stage.eliminatedPlayers.join(", ")} покидают игру`;
     }
-    if (stage.noElimination) return "Никто не покинул игру";
+    if (stage.noElimination) {
+      if (requiresTieBreak(this.rounds, roundIndex, analysis) && isThreeWayTieAmongNine(analysis)) {
+        return "Попил на троих при 9 голосующих · никто не покинул игру";
+      }
+      return "Никто не покинул игру";
+    }
+    if (requiresTieBreak(this.rounds, roundIndex, analysis)) {
+      return `Повторный попил: ${analysis.leaders.join(", ")} · выберите исход`;
+    }
     if (analysis.status === "tie") {
       return `Равенство голосов: ${analysis.leaders.join(", ")}`;
     }
     return stage.nominations.length > 0 ? "Ожидание всех голосов" : "";
+  }
+
+  createTieBreakActions(roundIndex, analysis) {
+    const actions = document.createElement("div");
+    actions.className = "tie-break-actions";
+    const hint = document.createElement("span");
+    hint.className = "tie-break-hint";
+    hint.textContent = "Подъём: все игроки с равным числом голосов покидают игру.";
+    const liftButton = document.createElement("button");
+    liftButton.className = "tie-break-button is-lift";
+    liftButton.type = "button";
+    liftButton.textContent = `Подъём · ${analysis.leaders.join(", ")}`;
+    liftButton.addEventListener("click", () => this.resolveTieBreak(roundIndex, "lift"));
+    const nobodyButton = document.createElement("button");
+    nobodyButton.className = "tie-break-button";
+    nobodyButton.type = "button";
+    nobodyButton.textContent = "Никто не покинул";
+    nobodyButton.addEventListener("click", () => this.resolveTieBreak(roundIndex, "nobody"));
+    actions.append(hint, liftButton, nobodyButton);
+    return actions;
   }
 
   updateRoundHeader(roundNumber) {
@@ -610,10 +676,12 @@ export class VotingController {
         || [...ineligibleVoters].some((playerNumber) => !previousIneligibleVoters.has(playerNumber));
       const stage = this.rounds[roundIndex];
       const cleanedStage = removeVoterChoices(stage, ineligibleVoters);
+      const votesChanged = JSON.stringify(stage.nominations) !== JSON.stringify(cleanedStage.nominations);
       if (
         eligibilityChanged
-        || JSON.stringify(stage.nominations) !== JSON.stringify(cleanedStage.nominations)
+        || votesChanged
       ) {
+        cleanedStage.tieBreakChoice = null;
         changedStageIndexes.push(roundIndex);
       }
       this.rounds[roundIndex] = cleanedStage;
@@ -710,6 +778,7 @@ export class VotingController {
       voterNumber,
       ineligibleVoters,
     );
+    this.rounds[roundIndex].tieBreakChoice = null;
     const structureChanged = this.synchronizeResolution(roundIndex);
     if (structureChanged) this.renderAll();
     else {
@@ -727,6 +796,7 @@ export class VotingController {
       parseVoterSequence(value),
       this.getIneligibleVoters(roundIndex),
     );
+    this.rounds[roundIndex].tieBreakChoice = null;
     const structureChanged = this.synchronizeResolution(roundIndex);
     if (structureChanged) this.renderAll();
     else {
@@ -758,10 +828,21 @@ export class VotingController {
 
   resolutionSignature(stageIndex) {
     const stage = this.rounds[stageIndex];
+    const analysis = analyzeVotingStage(stage, this.getIneligibleVoters(stageIndex));
     if (stageHasFollowingRevote(this.rounds, stageIndex)) {
       return `tie:${stage.revoteCandidates.join(",")}`;
     }
     if (stage.eliminatedPlayers.length === 1) return `winner:${stage.eliminatedPlayers[0]}`;
+    if (
+      stage.tieBreakChoice === "lift"
+      && requiresTieBreak(this.rounds, stageIndex, analysis)
+      && samePlayerNumbers(stage.eliminatedPlayers, analysis.leaders)
+    ) return `lift:${analysis.leaders.join(",")}`;
+    if (
+      stage.tieBreakChoice === "nobody"
+      && stage.noElimination
+      && requiresTieBreak(this.rounds, stageIndex, analysis)
+    ) return "tie-break-nobody";
     if (stage.noElimination) return "nobody";
     return "incomplete";
   }
@@ -769,10 +850,20 @@ export class VotingController {
   synchronizeResolution(stageIndex) {
     const stage = this.rounds[stageIndex];
     const analysis = analyzeVotingStage(stage, this.getIneligibleVoters(stageIndex));
+    const tieBreakRequired = requiresTieBreak(this.rounds, stageIndex, analysis);
+    const automaticNoElimination = tieBreakRequired && isThreeWayTieAmongNine(analysis);
     const desiredSignature = analysis.status === "winner"
       ? `winner:${analysis.leaders[0]}`
       : analysis.status === "tie"
-        ? `tie:${analysis.leaders.join(",")}`
+        ? automaticNoElimination
+          ? "nobody"
+          : tieBreakRequired
+            ? stage.tieBreakChoice === "lift" && samePlayerNumbers(stage.eliminatedPlayers, analysis.leaders)
+              ? `lift:${analysis.leaders.join(",")}`
+              : stage.tieBreakChoice === "nobody" && stage.noElimination
+                ? "tie-break-nobody"
+                : `tie-break:${analysis.leaders.join(",")}`
+            : `tie:${analysis.leaders.join(",")}`
         : "incomplete";
     if (this.resolutionSignature(stageIndex) === desiredSignature) return false;
 
@@ -782,15 +873,38 @@ export class VotingController {
     stage.revoteCandidates = [];
     stage.eliminatedPlayers = [];
     stage.noElimination = false;
+    stage.tieBreakChoice = null;
 
     if (analysis.status === "winner") {
       stage.eliminatedPlayers = [analysis.leaders[0]];
     } else if (analysis.status === "tie") {
       stage.revoteCandidates = [...analysis.leaders];
-      this.rounds.push(buildRevoteStage(stage, analysis.leaders));
-      this.currentRoundIndex = stageIndex + 1;
+      if (automaticNoElimination) {
+        stage.noElimination = true;
+      } else if (!tieBreakRequired) {
+        this.rounds.push(buildRevoteStage(stage, analysis.leaders));
+        this.currentRoundIndex = stageIndex + 1;
+      }
     }
-    return hadFollowingStages || analysis.status === "tie";
+    return hadFollowingStages || (analysis.status === "tie" && !tieBreakRequired);
+  }
+
+  resolveTieBreak(roundIndex, choice) {
+    const stage = this.rounds[roundIndex];
+    const analysis = analyzeVotingStage(stage, this.getIneligibleVoters(roundIndex));
+    if (
+      !["lift", "nobody"].includes(choice)
+      || !requiresTieBreak(this.rounds, roundIndex, analysis)
+      || isThreeWayTieAmongNine(analysis)
+    ) return;
+
+    stage.revoteCandidates = [...analysis.leaders];
+    stage.tieBreakChoice = choice;
+    stage.eliminatedPlayers = choice === "lift" ? [...analysis.leaders] : [];
+    stage.noElimination = choice === "nobody";
+    this.renderStage(roundIndex);
+    this.updateNextButton();
+    this.onChange();
   }
 
   startNextRound() {
@@ -833,6 +947,7 @@ export class VotingController {
         revoteCandidates: [...stage.revoteCandidates],
         eliminatedPlayers: [...stage.eliminatedPlayers],
         noElimination: stage.noElimination,
+        tieBreakChoice: stage.tieBreakChoice,
       })),
     };
   }
