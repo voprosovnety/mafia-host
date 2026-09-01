@@ -546,6 +546,16 @@ textarea {
   color: #f0c7b6;
 }
 
+.tie-break-button.is-selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.tie-break-button.is-lift.is-selected {
+  border-color: #e59c7d;
+  background: #3a2823;
+}
+
 .tie-break-button:hover {
   border-color: var(--text);
 }

@@ -523,7 +523,6 @@ export class VotingController {
     if (
       requiresTieBreak(this.rounds, roundIndex, analysis)
       && !isThreeWayTieAmongNine(analysis)
-      && !stage.tieBreakChoice
     ) {
       target.tieBreak.append(this.createTieBreakActions(roundIndex, analysis));
     }
@@ -574,6 +573,7 @@ export class VotingController {
   }
 
   createTieBreakActions(roundIndex, analysis) {
+    const stage = this.rounds[roundIndex];
     const actions = document.createElement("div");
     actions.className = "tie-break-actions";
     const hint = document.createElement("span");
@@ -581,13 +581,17 @@ export class VotingController {
     hint.textContent = "Подъём: все игроки с равным числом голосов покидают игру.";
     const liftButton = document.createElement("button");
     liftButton.className = "tie-break-button is-lift";
+    liftButton.classList.toggle("is-selected", stage.tieBreakChoice === "lift");
     liftButton.type = "button";
     liftButton.textContent = `Подъём · ${analysis.leaders.join(", ")}`;
+    liftButton.setAttribute("aria-pressed", String(stage.tieBreakChoice === "lift"));
     liftButton.addEventListener("click", () => this.resolveTieBreak(roundIndex, "lift"));
     const nobodyButton = document.createElement("button");
     nobodyButton.className = "tie-break-button";
+    nobodyButton.classList.toggle("is-selected", stage.tieBreakChoice === "nobody");
     nobodyButton.type = "button";
     nobodyButton.textContent = "Никто не покинул";
+    nobodyButton.setAttribute("aria-pressed", String(stage.tieBreakChoice === "nobody"));
     nobodyButton.addEventListener("click", () => this.resolveTieBreak(roundIndex, "nobody"));
     actions.append(hint, liftButton, nobodyButton);
     return actions;

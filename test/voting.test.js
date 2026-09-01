@@ -360,6 +360,11 @@ test("the host can keep everyone after a repeated tie in the first revote", () =
   assert.equal(controller.rounds[1].noElimination, true);
   assert.equal(controller.rounds[1].tieBreakChoice, "nobody");
   assert.equal(roundOutcomeSummary(controller.rounds, [0, 1]), "Никто не покинул");
+
+  controller.resolveTieBreak(1, "lift");
+  assert.deepEqual(controller.rounds[1].eliminatedPlayers, [2, 5]);
+  assert.equal(controller.rounds[1].noElimination, false);
+  assert.equal(controller.rounds[1].tieBreakChoice, "lift");
 });
 
 test("a repeated three-way tie among nine voters ends without a lift choice", () => {
