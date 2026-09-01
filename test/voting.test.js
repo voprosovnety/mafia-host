@@ -2,13 +2,18 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  analyzeVotingStage,
   buildRevoteStage,
+  formatVoterSequence,
+  groupVotingStages,
   ineligibleVotersForStage,
   normalizeVotingStages,
+  parseVoterSequence,
   removeVoterChoices,
+  roundOutcomeSummary,
+  setNominationVoters,
   setVoterChoice,
   stageHasFollowingRevote,
-  stageOutcomeSummary,
   VotingController,
 } from "../js/voting.js";
 
@@ -36,6 +41,58 @@ test("a voter can belong to only one candidate in a voting stage", () => {
 
   const removed = setVoterChoice(moved, 5, 1);
   assert.deepEqual(removed.nominations.map(({ voters }) => voters), [[3], [4]]);
+});
+
+test("joined keyboard input parses player ten and removes duplicates", () => {
+  assert.deepEqual(parseVoterSequence("1230"), [1, 2, 3, 10]);
+  assert.deepEqual(parseVoterSequence("12310"), [1, 2, 3, 10]);
+  assert.deepEqual(parseVoterSequence("0"), [10]);
+  assert.deepEqual(parseVoterSequence("10"), [1, 10]);
+  assert.deepEqual(parseVoterSequence("110"), [1, 10]);
+  assert.deepEqual(parseVoterSequence("10-2-2"), [1, 10, 2]);
+  assert.equal(formatVoterSequence([1, 10]), "10");
+  assert.equal(formatVoterSequence([10]), "0");
+});
+
+test("joined keyboard input moves voters from other candidates", () => {
+  const [stage] = normalizeVotingStages([{
+    nominations: [
+      { playerNumber: 2, voters: [1, 3, 10] },
+      { playerNumber: 5, voters: [2, 4] },
+    ],
+  }]);
+  const updated = setNominationVoters(stage, 5, parseVoterSequence("12310"));
+
+  assert.deepEqual(updated.nominations, [
+    { playerNumber: 2, voters: [] },
+    { playerNumber: 5, voters: [1, 2, 3, 10] },
+  ]);
+});
+
+test("joined keyboard input triggers the same automatic revote flow", () => {
+  const controller = automaticController([{
+    nominations: [2, 5],
+  }]);
+  let changes = 0;
+  let focusMoves = 0;
+  controller.roundsElement = { scrollTop: 0, scrollHeight: 100 };
+  controller.renderStage = () => {};
+  controller.renderAll = () => {};
+  controller.updateNextButton = () => {};
+  controller.focusVoterSequence = () => { focusMoves += 1; };
+  controller.onChange = () => { changes += 1; };
+
+  controller.recordVoterSequence(0, 2, "12345");
+  controller.recordVoterSequence(0, 5, "67890");
+
+  assert.equal(changes, 2);
+  assert.equal(focusMoves, 1);
+  assert.equal(controller.currentRoundIndex, 1);
+  assert.deepEqual(controller.rounds[0].revoteCandidates, [2, 5]);
+  assert.deepEqual(controller.rounds[1].nominations, [
+    { playerNumber: 2, voters: [] },
+    { playerNumber: 5, voters: [] },
+  ]);
 });
 
 test("restored duplicate votes keep the first candidate only", () => {
@@ -108,19 +165,22 @@ test("an outcome belongs only to the final stage of a revote chain", () => {
   assert.deepEqual(stages[1].eliminatedPlayers, [8]);
 });
 
-test("collapsed voting stages summarize only their outcome", () => {
+test("voting stages are grouped with their revotes and summarize the final stage", () => {
   const stages = normalizeVotingStages([
-    { nominations: [2, 5], eliminatedPlayers: [5] },
-    { nominations: [3, 6], eliminatedPlayers: [3, 6] },
-    { nominations: [7], noElimination: true },
-    { nominations: [8] },
+    { kind: "round", roundNumber: 0, nominations: [2, 5] },
+    { kind: "revote", roundNumber: 0, revoteNumber: 1, nominations: [2, 5] },
+    { kind: "revote", roundNumber: 0, revoteNumber: 2, nominations: [2, 5], eliminatedPlayers: [5] },
+    { kind: "round", roundNumber: 1, nominations: [], noElimination: true },
   ]);
+  const groups = groupVotingStages(stages);
 
-  assert.equal(stageOutcomeSummary(stages[0]), "Покинул игру: 5");
-  assert.equal(stageOutcomeSummary(stages[1]), "Покинули игру: 3, 6");
-  assert.equal(stageOutcomeSummary(stages[2]), "Никто не покинул");
-  assert.equal(stageOutcomeSummary(stages[3]), "Исход не указан");
-  assert.equal(stageOutcomeSummary(stages[3], true), "Никто не покинул");
+  assert.deepEqual(groups, [
+    { roundNumber: 0, stageIndexes: [0, 1, 2] },
+    { roundNumber: 1, stageIndexes: [3] },
+  ]);
+  assert.equal(roundOutcomeSummary(stages, groups[0].stageIndexes), "Покинул игру: 5");
+  assert.equal(roundOutcomeSummary(stages, groups[1].stageIndexes), "Никто не покинул");
+  assert.equal(roundOutcomeSummary(stages, [0, 1]), "Никто не покинул");
 });
 
 test("a voting round header toggles its collapsed state and accessibility state", () => {
@@ -128,7 +188,7 @@ test("a voting round header toggles its collapsed state and accessibility state"
   const classes = new Set();
   const attributes = new Map();
   controller.collapsedRounds = new Set();
-  controller.roundElements = [{
+  controller.roundElements = new Map([[0, {
     round: {
       classList: {
         toggle(name, enabled) {
@@ -142,7 +202,7 @@ test("a voting round header toggles its collapsed state and accessibility state"
         attributes.set(name, value);
       },
     },
-  }];
+  }]]);
 
   controller.toggleRound(0);
   assert.equal(controller.collapsedRounds.has(0), true);
@@ -153,6 +213,273 @@ test("a voting round header toggles its collapsed state and accessibility state"
   assert.equal(controller.collapsedRounds.has(0), false);
   assert.equal(classes.has("is-collapsed"), false);
   assert.equal(attributes.get("aria-expanded"), "true");
+});
+
+test("automatic voting waits until every eligible player has voted", () => {
+  const [stage] = normalizeVotingStages([{
+    nominations: [
+      { playerNumber: 2, voters: [1, 2, 3, 4, 5] },
+      { playerNumber: 5, voters: [6, 7, 8, 9] },
+    ],
+  }]);
+
+  assert.deepEqual(analyzeVotingStage(stage), {
+    status: "incomplete",
+    assignedCount: 9,
+    eligibleCount: 10,
+    leaders: [],
+  });
+  assert.deepEqual(analyzeVotingStage(stage, new Set([10])), {
+    status: "winner",
+    assignedCount: 9,
+    eligibleCount: 9,
+    leaders: [2],
+  });
+});
+
+test("automatic voting uses the unique top result despite a lower tie", () => {
+  const [stage] = normalizeVotingStages([{
+    nominations: [
+      { playerNumber: 2, voters: [1, 2, 3, 4] },
+      { playerNumber: 5, voters: [5, 6, 7] },
+      { playerNumber: 8, voters: [8, 9, 10] },
+    ],
+  }]);
+
+  assert.deepEqual(analyzeVotingStage(stage), {
+    status: "winner",
+    assignedCount: 10,
+    eligibleCount: 10,
+    leaders: [2],
+  });
+});
+
+test("automatic voting sends only tied leaders to a revote", () => {
+  const [stage] = normalizeVotingStages([{
+    nominations: [
+      { playerNumber: 2, voters: [1, 2, 3, 4] },
+      { playerNumber: 5, voters: [5, 6, 7, 8] },
+      { playerNumber: 8, voters: [9, 10] },
+    ],
+  }]);
+
+  assert.deepEqual(analyzeVotingStage(stage), {
+    status: "tie",
+    assignedCount: 10,
+    eligibleCount: 10,
+    leaders: [2, 5],
+  });
+});
+
+function automaticController(rounds) {
+  const controller = Object.create(VotingController.prototype);
+  controller.rounds = normalizeVotingStages(rounds);
+  controller.currentRoundIndex = controller.rounds.length - 1;
+  controller.killedFromRound = new Map();
+  controller.hasAppliedNightKills = false;
+  return controller;
+}
+
+test("controller stores a unique automatic winner", () => {
+  const controller = automaticController([{
+    nominations: [
+      { playerNumber: 2, voters: [1, 2, 3, 4, 5, 6] },
+      { playerNumber: 5, voters: [7, 8, 9, 10] },
+    ],
+  }]);
+
+  assert.equal(controller.synchronizeResolution(0), false);
+  assert.deepEqual(controller.rounds[0].eliminatedPlayers, [2]);
+  assert.equal(controller.rounds.length, 1);
+});
+
+test("controller creates repeated revotes inside the same numbered round", () => {
+  const controller = automaticController([{
+    kind: "round",
+    roundNumber: 3,
+    nominations: [
+      { playerNumber: 2, voters: [1, 2, 3, 4, 5] },
+      { playerNumber: 5, voters: [6, 7, 8, 9, 10] },
+    ],
+  }]);
+
+  assert.equal(controller.synchronizeResolution(0), true);
+  assert.equal(controller.rounds[1].kind, "revote");
+  assert.equal(controller.rounds[1].roundNumber, 3);
+  assert.equal(controller.rounds[1].revoteNumber, 1);
+
+  controller.rounds[1].nominations[0].voters = [1, 2, 3, 4, 5];
+  controller.rounds[1].nominations[1].voters = [6, 7, 8, 9, 10];
+  assert.equal(controller.synchronizeResolution(1), true);
+  assert.equal(controller.rounds[2].kind, "revote");
+  assert.equal(controller.rounds[2].roundNumber, 3);
+  assert.equal(controller.rounds[2].revoteNumber, 2);
+  assert.deepEqual(groupVotingStages(controller.rounds), [
+    { roundNumber: 3, stageIndexes: [0, 1, 2] },
+  ]);
+
+  controller.rounds[2].nominations[0].voters = [1, 2, 3, 4, 5, 6];
+  controller.rounds[2].nominations[1].voters = [7, 8, 9, 10];
+  assert.equal(controller.synchronizeResolution(2), false);
+  assert.deepEqual(controller.rounds[2].eliminatedPlayers, [2]);
+  assert.equal(roundOutcomeSummary(controller.rounds, [0, 1, 2]), "Покинул игру: 2");
+});
+
+test("removing the last vote clears an automatic outcome", () => {
+  const controller = automaticController([{
+    nominations: [
+      { playerNumber: 2, voters: [1, 2, 3, 4, 5, 6] },
+      { playerNumber: 5, voters: [7, 8, 9, 10] },
+    ],
+  }]);
+  controller.synchronizeResolution(0);
+  controller.rounds[0].nominations[0].voters.pop();
+
+  assert.equal(controller.synchronizeResolution(0), false);
+  assert.deepEqual(controller.rounds[0].eliminatedPlayers, []);
+  assert.equal(analyzeVotingStage(controller.rounds[0]).status, "incomplete");
+});
+
+test("editing an earlier tie preserves or rebuilds its dependent revote", () => {
+  const controller = automaticController([
+    {
+      kind: "round",
+      roundNumber: 0,
+      nominations: [
+        { playerNumber: 2, voters: [1, 2, 3, 4, 5] },
+        { playerNumber: 5, voters: [6, 7, 8, 9, 10] },
+      ],
+      revoteCandidates: [2, 5],
+    },
+    {
+      kind: "revote",
+      roundNumber: 0,
+      revoteNumber: 1,
+      nominations: [
+        { playerNumber: 2, voters: [1, 2] },
+        { playerNumber: 5, voters: [3] },
+      ],
+    },
+  ]);
+
+  assert.equal(controller.synchronizeResolution(0), false);
+  assert.deepEqual(controller.rounds[1].nominations[0].voters, [1, 2]);
+
+  controller.rounds[0].nominations[0].voters.push(6);
+  controller.rounds[0].nominations[1].voters = [7, 8, 9, 10];
+  assert.equal(controller.synchronizeResolution(0), true);
+  assert.equal(controller.rounds.length, 1);
+  assert.deepEqual(controller.rounds[0].eliminatedPlayers, [2]);
+});
+
+test("the initial night restore preserves a legacy manual outcome", () => {
+  const controller = automaticController([{
+    roundNumber: 1,
+    nominations: [
+      { playerNumber: 2, voters: [1] },
+      { playerNumber: 5, voters: [2] },
+    ],
+    eliminatedPlayers: [2],
+  }]);
+  controller.renderAll = () => {};
+
+  controller.setNightKills([]);
+
+  assert.deepEqual(controller.rounds[0].eliminatedPlayers, [2]);
+  assert.equal(controller.hasAppliedNightKills, true);
+});
+
+test("the initial night restore completes a fully voted stage without an outcome", () => {
+  const controller = automaticController([{
+    nominations: [
+      { playerNumber: 2, voters: [1, 2, 3, 4, 5] },
+      { playerNumber: 5, voters: [6, 7, 8, 9, 10] },
+    ],
+  }]);
+  controller.renderAll = () => {};
+
+  controller.setNightKills([]);
+
+  assert.equal(controller.rounds.length, 2);
+  assert.equal(controller.rounds[1].kind, "revote");
+  assert.deepEqual(controller.rounds[0].revoteCandidates, [2, 5]);
+});
+
+test("the initial restore completes earlier voted rounds before cleaning later votes", () => {
+  const controller = automaticController([
+    {
+      kind: "round",
+      roundNumber: 0,
+      nominations: [
+        { playerNumber: 2, voters: [1, 2, 3, 4, 5, 6] },
+        { playerNumber: 5, voters: [7, 8, 9, 10] },
+      ],
+    },
+    {
+      kind: "round",
+      roundNumber: 1,
+      nominations: [{ playerNumber: 3, voters: [2, 3] }],
+    },
+  ]);
+  controller.renderAll = () => {};
+
+  controller.setNightKills([]);
+
+  assert.deepEqual(controller.rounds[0].eliminatedPlayers, [2]);
+  assert.deepEqual(controller.rounds[1].nominations[0].voters, [3]);
+});
+
+test("keyboard sequence focus moves to the requested replacement input", () => {
+  const controller = Object.create(VotingController.prototype);
+  const focused = [];
+  const inputs = [2, 5, 8].map((nomineeNumber) => ({
+    dataset: { nominee: String(nomineeNumber) },
+    focus: () => focused.push(nomineeNumber),
+  }));
+  controller.stageElements = [{
+    nominees: { querySelectorAll: () => inputs },
+  }];
+
+  controller.focusVoterSequence(0, { afterNomineeNumber: 2 });
+  controller.focusVoterSequence(0, { nomineeNumber: 8 });
+
+  assert.deepEqual(focused, [5, 8]);
+});
+
+test("a later night change recalculates the affected automatic result", () => {
+  const controller = automaticController([{
+    roundNumber: 1,
+    nominations: [
+      { playerNumber: 2, voters: [1, 2, 3, 4, 5] },
+      { playerNumber: 5, voters: [6, 7, 8, 9] },
+      { playerNumber: 8, voters: [10] },
+    ],
+    eliminatedPlayers: [2],
+  }]);
+  controller.hasAppliedNightKills = true;
+  controller.renderAll = () => {};
+
+  controller.setNightKills([{ playerNumber: 1, fromRoundNumber: 1 }]);
+
+  assert.equal(controller.rounds.length, 2);
+  assert.deepEqual(controller.rounds[0].eliminatedPlayers, []);
+  assert.deepEqual(controller.rounds[0].revoteCandidates, [2, 5]);
+  assert.deepEqual(controller.rounds[1].nominations, [
+    { playerNumber: 2, voters: [] },
+    { playerNumber: 5, voters: [] },
+  ]);
+});
+
+test("only stages in the active numbered round remain editable", () => {
+  const controller = automaticController([
+    { kind: "round", roundNumber: 0, nominations: [2] },
+    { kind: "round", roundNumber: 1, nominations: [3, 5] },
+    { kind: "revote", roundNumber: 1, revoteNumber: 1, nominations: [3, 5] },
+  ]);
+
+  assert.equal(controller.isStageEditable(0), false);
+  assert.equal(controller.isStageEditable(1), true);
+  assert.equal(controller.isStageEditable(2), true);
 });
 
 test("a player eliminated by voting cannot vote in later stages", () => {

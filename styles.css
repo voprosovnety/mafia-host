@@ -296,6 +296,16 @@ textarea {
   gap: 0.5rem;
 }
 
+.voting-input-hint {
+  margin: 0.45rem 0 0;
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
+.voting-input-hint kbd {
+  color: var(--text);
+}
+
 .next-round-button,
 .reset-rounds-button {
   min-height: 2.35rem;
@@ -319,8 +329,14 @@ textarea {
   color: var(--muted);
 }
 
-.next-round-button:hover {
+.next-round-button:hover:not(:disabled) {
   background: var(--accent-soft);
+}
+
+.next-round-button:disabled {
+  border-color: var(--line);
+  color: #646b72;
+  cursor: not-allowed;
 }
 
 .reset-rounds-button:hover {
@@ -347,15 +363,6 @@ textarea {
   padding: 0.65rem 0.45rem 0.75rem;
   border-bottom: 1px solid var(--line);
   border-left: 3px solid transparent;
-}
-
-.voting-round.is-revote {
-  border-left-color: #71679a;
-}
-
-.voting-round.is-revote.is-current {
-  border-left-color: #8f82bf;
-  background: #211e2a;
 }
 
 .round-header {
@@ -431,7 +438,7 @@ textarea {
 }
 
 .voting-round.is-collapsed .round-vote-count,
-.voting-round.is-collapsed .nominees {
+.voting-round.is-collapsed .voting-stages {
   display: none;
 }
 
@@ -439,16 +446,73 @@ textarea {
   display: block;
 }
 
-.nominees {
+.voting-stages {
   display: grid;
-  gap: 0.5rem;
+  gap: 0.65rem;
   min-height: 2.2rem;
   margin-top: 0.55rem;
 }
 
+.voting-stage {
+  min-width: 0;
+}
+
+.voting-stage.is-revote {
+  padding: 0.55rem;
+  border-left: 3px solid #8f82bf;
+  background: #211e2a;
+}
+
+.voting-stage-header {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.45rem;
+}
+
+.voting-stage-label {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.voting-stage.is-current .voting-stage-label {
+  color: var(--text);
+}
+
+.voting-stage-vote-count {
+  color: var(--muted);
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 0.66rem;
+}
+
+.nominees {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.voting-stage-status {
+  margin: 0.5rem 0 0;
+  padding: 0.4rem 0.5rem;
+  border-left: 3px solid var(--accent);
+  background: var(--accent-soft);
+  color: var(--text);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.voting-stage.is-revote .voting-stage-status {
+  border-left-color: #8f82bf;
+  background: #302946;
+  color: #ded6f4;
+}
+
 .vote-card {
   display: grid;
-  grid-template-columns: 2rem minmax(4rem, 1fr) auto;
+  grid-template-columns: 2rem minmax(3.5rem, 1fr) minmax(6rem, 8rem) auto;
   gap: 0.4rem;
   align-items: center;
   padding: 0.35rem 0.4rem;
@@ -474,6 +538,35 @@ textarea {
   font-weight: 700;
 }
 
+.voter-sequence-input {
+  width: 100%;
+  min-width: 0;
+  height: 1.9rem;
+  padding: 0.25rem 0.4rem;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.05em;
+}
+
+.voter-sequence-input::placeholder {
+  color: #646b72;
+}
+
+.voter-sequence-input:focus-visible {
+  outline: 3px solid var(--text);
+  outline-offset: 2px;
+}
+
+.voter-sequence-input:disabled {
+  border-color: transparent;
+  color: var(--muted);
+  opacity: 0.72;
+}
+
 .vote-voters-details {
   min-width: 6.2rem;
 }
@@ -482,8 +575,7 @@ textarea {
   grid-column: 1 / -1;
 }
 
-.vote-voters-details summary,
-.round-tool summary {
+.vote-voters-details summary {
   color: var(--muted);
   font-size: 0.66rem;
   font-weight: 800;
@@ -493,21 +585,18 @@ textarea {
   list-style: none;
 }
 
-.vote-voters-details summary::-webkit-details-marker,
-.round-tool summary::-webkit-details-marker {
+.vote-voters-details summary::-webkit-details-marker {
   display: none;
 }
 
-.vote-voters-details summary::before,
-.round-tool summary::before {
+.vote-voters-details summary::before {
   content: "+";
   display: inline-block;
   width: 0.9rem;
   color: var(--accent);
 }
 
-.vote-voters-details[open] summary::before,
-.round-tool[open] summary::before {
+.vote-voters-details[open] summary::before {
   content: "−";
 }
 
@@ -563,112 +652,10 @@ textarea {
   cursor: not-allowed;
 }
 
-.create-revote-button {
-  min-height: 1.9rem;
-  padding: 0.25rem 0.55rem;
-  border: 1px solid #71679a;
-  border-radius: 0;
-  background: transparent;
-  color: #c7bce8;
-  font-size: 0.64rem;
-  font-weight: 800;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  cursor: pointer;
-}
-
-.create-revote-button:hover:not(:disabled) {
-  background: #302946;
-}
-
-.create-revote-button:disabled {
-  border-color: var(--line);
-  color: #646b72;
-  cursor: default;
-}
-
 .voter-button:focus-visible,
-.create-revote-button:focus-visible,
-.voting-selection-button:focus-visible,
-.round-tool summary:focus-visible,
 .vote-voters-details summary:focus-visible {
   outline: 3px solid var(--text);
   outline-offset: 2px;
-}
-
-.round-tools {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.35rem;
-}
-
-.round-tool {
-  min-width: 0;
-  padding: 0.4rem 0.5rem;
-  border: 1px solid var(--line);
-  background: transparent;
-}
-
-.round-tool[open] {
-  grid-column: 1 / -1;
-  background: var(--page);
-}
-
-.round-tool:only-child {
-  grid-column: 1 / -1;
-}
-
-.round-tool-body {
-  display: flex;
-  gap: 0.4rem;
-  align-items: center;
-  margin-top: 0.5rem;
-}
-
-.round-tool-hint {
-  margin-right: auto;
-  color: var(--muted);
-  font-size: 0.66rem;
-}
-
-.voting-selection-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem;
-}
-
-.voting-selection-button {
-  width: 1.65rem;
-  height: 1.65rem;
-  padding: 0;
-  border: 1px solid var(--line);
-  border-radius: 50%;
-  background: transparent;
-  color: var(--muted);
-  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
-  font-size: 0.7rem;
-  cursor: pointer;
-}
-
-.revote-tool .voting-selection-button.is-selected {
-  border-color: #8f82bf;
-  background: #302946;
-  color: #ded6f4;
-}
-
-.outcome-tool .voting-selection-button.is-selected {
-  border-color: var(--danger);
-  background: #5b302d;
-  color: var(--text);
-}
-
-.outcome-none-button {
-  width: auto;
-  min-width: 4.2rem;
-  padding: 0 0.45rem;
-  border-radius: 0;
-  font-family: inherit;
-  font-weight: 800;
 }
 
 .no-nominees {
@@ -951,6 +938,13 @@ kbd {
   border-color: var(--accent);
   background: var(--accent);
   color: var(--page);
+}
+
+.nominate-button:disabled {
+  border-color: var(--line);
+  background: transparent;
+  color: #646b72;
+  cursor: not-allowed;
 }
 
 .player-number {
@@ -2346,15 +2340,6 @@ kbd {
   .voters {
     grid-template-columns: repeat(5, 1.7rem);
     gap: 0.3rem;
-  }
-
-  .round-tool-body {
-    align-items: flex-start;
-    flex-wrap: wrap;
-  }
-
-  .round-tool-hint {
-    width: 100%;
   }
 
   .night-workbench {

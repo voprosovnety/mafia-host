@@ -94,15 +94,72 @@ export function stageHasFollowingRevote(stages, stageIndex) {
   return nextStage.revoteNumber === expectedRevoteNumber;
 }
 
-export function stageOutcomeSummary(stage, hasFollowingRevote = false) {
+export function stageOutcomeSummary(stage) {
   if (stage.eliminatedPlayers.length === 1) {
     return `Покинул игру: ${stage.eliminatedPlayers[0]}`;
   }
   if (stage.eliminatedPlayers.length > 1) {
     return `Покинули игру: ${stage.eliminatedPlayers.join(", ")}`;
   }
-  if (stage.noElimination || hasFollowingRevote) return "Никто не покинул";
+  if (stage.noElimination) return "Никто не покинул";
   return "Исход не указан";
+}
+
+export function groupVotingStages(stages) {
+  return stages.reduce((groups, stage, stageIndex) => {
+    const currentGroup = groups.at(-1);
+    if (currentGroup?.roundNumber === stage.roundNumber) {
+      currentGroup.stageIndexes.push(stageIndex);
+    } else {
+      groups.push({ roundNumber: stage.roundNumber, stageIndexes: [stageIndex] });
+    }
+    return groups;
+  }, []);
+}
+
+export function analyzeVotingStage(stage, ineligibleVoters = new Set()) {
+  const eligibleVoters = new Set();
+  for (let playerNumber = 1; playerNumber <= PLAYER_COUNT; playerNumber += 1) {
+    if (!ineligibleVoters.has(playerNumber)) eligibleVoters.add(playerNumber);
+  }
+
+  const assignedVoters = new Set();
+  const counts = stage.nominations.map(({ playerNumber, voters }) => {
+    let count = 0;
+    voters.forEach((voterNumber) => {
+      if (!eligibleVoters.has(voterNumber) || assignedVoters.has(voterNumber)) return;
+      assignedVoters.add(voterNumber);
+      count += 1;
+    });
+    return { playerNumber, count };
+  });
+  const result = {
+    status: "incomplete",
+    assignedCount: assignedVoters.size,
+    eligibleCount: eligibleVoters.size,
+    leaders: [],
+  };
+  if (
+    stage.nominations.length === 0 ||
+    eligibleVoters.size === 0 ||
+    assignedVoters.size !== eligibleVoters.size
+  ) return result;
+
+  const highestCount = Math.max(...counts.map(({ count }) => count));
+  result.leaders = counts
+    .filter(({ count }) => count === highestCount)
+    .map(({ playerNumber }) => playerNumber);
+  result.status = result.leaders.length === 1 ? "winner" : "tie";
+  return result;
+}
+
+export function roundOutcomeSummary(stages, stageIndexes) {
+  const finalStageIndex = stageIndexes.at(-1);
+  if (finalStageIndex === undefined) return "Никто не покинул";
+  const finalStage = stages[finalStageIndex];
+  return finalStage.eliminatedPlayers.length > 0
+    ? stageOutcomeSummary(finalStage)
+    : "Никто не покинул";
 }
 
 export function ineligibleVotersForStage(stages, stageIndex, killedFromRound = new Map()) {
@@ -153,8 +210,45 @@ export function setVoterChoice(stage, nomineeNumber, voterNumber, ineligibleVote
   };
 }
 
-export function buildRevoteStage(sourceStage) {
-  const selected = new Set(sourceStage.revoteCandidates);
+export function parseVoterSequence(value) {
+  const digits = String(value ?? "").replace(/\D/g, "");
+  const voters = [];
+  for (let index = 0; index < digits.length; index += 1) {
+    const playerNumber = digits[index] === "0" ? 10 : Number(digits[index]);
+    if (isPlayerNumber(playerNumber) && !voters.includes(playerNumber)) voters.push(playerNumber);
+  }
+  return voters;
+}
+
+export function formatVoterSequence(voterNumbers) {
+  return uniquePlayerNumbers(voterNumbers)
+    .map((playerNumber) => playerNumber === 10 ? "0" : String(playerNumber))
+    .join("");
+}
+
+export function setNominationVoters(
+  stage,
+  nomineeNumber,
+  voterNumbers,
+  ineligibleVoters = new Set(),
+) {
+  if (!isPlayerNumber(nomineeNumber)) return stage;
+  const selectedVoters = uniquePlayerNumbers(voterNumbers)
+    .filter((voterNumber) => !ineligibleVoters.has(voterNumber));
+  const selectedSet = new Set(selectedVoters);
+  return {
+    ...stage,
+    nominations: stage.nominations.map((nomination) => ({
+      ...nomination,
+      voters: nomination.playerNumber === nomineeNumber
+        ? selectedVoters
+        : nomination.voters.filter((voterNumber) => !selectedSet.has(voterNumber)),
+    })),
+  };
+}
+
+export function buildRevoteStage(sourceStage, candidates = sourceStage.revoteCandidates) {
+  const selected = new Set(candidates);
   const previousRevoteNumber = sourceStage.kind === "revote" ? sourceStage.revoteNumber : 0;
   return {
     kind: "revote",
@@ -172,13 +266,16 @@ export function buildRevoteStage(sourceStage) {
 export class VotingController {
   constructor({ roundsElement, nextButton, resetButton, onChange }) {
     this.roundsElement = roundsElement;
+    this.nextButton = nextButton;
     this.onChange = onChange;
     this.rounds = [emptyRound(0)];
     this.currentRoundIndex = 0;
-    this.roundElements = [];
+    this.roundElements = new Map();
+    this.stageElements = [];
     this.collapsedRounds = new Set();
     this.nominationButtons = new Map();
     this.killedFromRound = new Map();
+    this.hasAppliedNightKills = false;
 
     nextButton.addEventListener("click", () => this.startNextRound());
     resetButton.addEventListener("click", () => this.reset());
@@ -191,28 +288,26 @@ export class VotingController {
   }
 
   stageLabel(stage) {
-    if (stage.kind !== "revote") return `Круг ${stage.roundNumber}`;
+    if (stage.kind !== "revote") return "Голосование";
     return stage.revoteNumber > 1
-      ? `Переголос. ${stage.revoteNumber} · круг ${stage.roundNumber}`
-      : `Переголосование · круг ${stage.roundNumber}`;
+      ? `Переголосование ${stage.revoteNumber}`
+      : "Переголосование";
   }
 
-  createRound(roundIndex) {
-    const stage = this.rounds[roundIndex];
+  createRound(group) {
     const round = document.createElement("section");
     round.className = "voting-round";
-    round.classList.toggle("is-current", roundIndex === this.currentRoundIndex);
-    round.classList.toggle("is-revote", stage.kind === "revote");
-    round.classList.toggle("is-collapsed", this.collapsedRounds.has(roundIndex));
-    round.dataset.round = String(roundIndex);
+    round.classList.toggle("is-current", group.stageIndexes.includes(this.currentRoundIndex));
+    round.classList.toggle("is-collapsed", this.collapsedRounds.has(group.roundNumber));
+    round.dataset.round = String(group.roundNumber);
 
     const header = document.createElement("button");
     header.className = "round-header";
     header.type = "button";
-    header.setAttribute("aria-expanded", String(!this.collapsedRounds.has(roundIndex)));
+    header.setAttribute("aria-expanded", String(!this.collapsedRounds.has(group.roundNumber)));
     const label = document.createElement("span");
     label.className = "round-label";
-    label.textContent = this.stageLabel(stage);
+    label.textContent = `Круг ${group.roundNumber}`;
     const headerMeta = document.createElement("span");
     headerMeta.className = "round-header-meta";
     const voteCount = document.createElement("span");
@@ -222,23 +317,57 @@ export class VotingController {
     headerMeta.append(voteCount, compactOutcome);
     header.append(label, headerMeta);
 
-    const nominees = document.createElement("div");
-    nominees.className = "nominees";
-    nominees.id = `voting-round-body-${roundIndex}`;
-    header.setAttribute("aria-controls", nominees.id);
-    header.addEventListener("click", () => this.toggleRound(roundIndex));
-    round.append(header, nominees);
+    const stages = document.createElement("div");
+    stages.className = "voting-stages";
+    stages.id = `voting-round-body-${group.roundNumber}`;
+    header.setAttribute("aria-controls", stages.id);
+    header.addEventListener("click", () => this.toggleRound(group.roundNumber));
+    round.append(header, stages);
     this.roundsElement.append(round);
-    this.roundElements.push({ round, header, nominees, voteCount, compactOutcome });
-    this.renderRound(roundIndex);
+    this.roundElements.set(group.roundNumber, {
+      round,
+      header,
+      stages,
+      voteCount,
+      compactOutcome,
+      stageIndexes: group.stageIndexes,
+    });
+    group.stageIndexes.forEach((stageIndex) => this.createStage(stageIndex, stages));
+    this.updateRoundHeader(group.roundNumber);
   }
 
-  toggleRound(roundIndex) {
-    const target = this.roundElements[roundIndex];
+  createStage(stageIndex, stages) {
+    const stage = this.rounds[stageIndex];
+    const stageElement = document.createElement("section");
+    stageElement.className = "voting-stage";
+    stageElement.classList.toggle("is-current", stageIndex === this.currentRoundIndex);
+    stageElement.classList.toggle("is-revote", stage.kind === "revote");
+
+    const header = document.createElement("div");
+    header.className = "voting-stage-header";
+    const label = document.createElement("span");
+    label.className = "voting-stage-label";
+    label.textContent = this.stageLabel(stage);
+    const voteCount = document.createElement("span");
+    voteCount.className = "voting-stage-vote-count";
+    header.append(label, voteCount);
+
+    const nominees = document.createElement("div");
+    nominees.className = "nominees";
+    const status = document.createElement("p");
+    status.className = "voting-stage-status";
+    stageElement.append(header, nominees, status);
+    stages.append(stageElement);
+    this.stageElements[stageIndex] = { stageElement, nominees, voteCount, status };
+    this.renderStage(stageIndex);
+  }
+
+  toggleRound(roundNumber) {
+    const target = this.roundElements.get(roundNumber);
     if (!target) return;
-    const isCollapsed = !this.collapsedRounds.has(roundIndex);
-    if (isCollapsed) this.collapsedRounds.add(roundIndex);
-    else this.collapsedRounds.delete(roundIndex);
+    const isCollapsed = !this.collapsedRounds.has(roundNumber);
+    if (isCollapsed) this.collapsedRounds.add(roundNumber);
+    else this.collapsedRounds.delete(roundNumber);
     target.round.classList.toggle("is-collapsed", isCollapsed);
     target.header.setAttribute("aria-expanded", String(!isCollapsed));
   }
@@ -248,15 +377,22 @@ export class VotingController {
     const selected = nomination.voters.includes(voterNumber);
     const ineligibleVoters = this.getIneligibleVoters(roundIndex);
     const isIneligible = ineligibleVoters.has(voterNumber);
+    const isEditable = this.isStageEditable(roundIndex);
     button.className = "voter-button";
     button.classList.toggle("is-selected", selected);
     button.type = "button";
     button.textContent = String(voterNumber);
-    button.disabled = isIneligible;
-    button.title = isIneligible ? `Игрок ${voterNumber} выбыл` : `Игрок ${voterNumber}`;
+    button.disabled = isIneligible || !isEditable;
+    button.title = isIneligible
+      ? `Игрок ${voterNumber} выбыл`
+      : isEditable
+        ? `Игрок ${voterNumber}`
+        : "Завершённый круг нельзя изменить";
     button.setAttribute(
       "aria-label",
-      isIneligible
+      !isEditable
+        ? `Голос игрока ${voterNumber} в завершённом круге`
+        : isIneligible
         ? `Игрок ${voterNumber} выбыл и больше не голосует`
         : selected
           ? `Снять голос игрока ${voterNumber} за игрока ${nomination.playerNumber}`
@@ -264,14 +400,7 @@ export class VotingController {
     );
     button.setAttribute("aria-pressed", String(selected));
     button.addEventListener("click", () => {
-      this.rounds[roundIndex] = setVoterChoice(
-        this.rounds[roundIndex],
-        nomination.playerNumber,
-        voterNumber,
-        ineligibleVoters,
-      );
-      this.renderRound(roundIndex);
-      this.onChange();
+      this.recordVote(roundIndex, nomination.playerNumber, voterNumber, ineligibleVoters);
     });
     return button;
   }
@@ -286,6 +415,7 @@ export class VotingController {
     const candidateLabel = document.createElement("span");
     candidateLabel.className = "candidate-label";
     candidateLabel.textContent = `Игрок ${nomination.playerNumber}`;
+    const voterSequence = this.createVoterSequenceInput(roundIndex, nomination);
     const voterDetails = document.createElement("details");
     voterDetails.className = "vote-voters-details";
     voterDetails.dataset.nominee = String(nomination.playerNumber);
@@ -302,131 +432,70 @@ export class VotingController {
       voters.append(this.createVoterButton(roundIndex, nomination, voterNumber));
     }
     voterDetails.append(voterSummary, voters);
-    card.append(number, candidateLabel, voterDetails);
+    card.append(number, candidateLabel, voterSequence, voterDetails);
     return card;
   }
 
-  createSelectionButton({ playerNumber, selected, label, onClick }) {
-    const button = document.createElement("button");
-    button.className = "voting-selection-button";
-    button.classList.toggle("is-selected", selected);
-    button.type = "button";
-    button.textContent = String(playerNumber);
-    button.setAttribute("aria-pressed", String(selected));
-    button.setAttribute("aria-label", label);
-    button.addEventListener("click", onClick);
-    return button;
-  }
-
-  createRoundTool(summaryText, className, wasOpen = false) {
-    const details = document.createElement("details");
-    details.className = `round-tool ${className}`;
-    details.open = wasOpen;
-    const summary = document.createElement("summary");
-    summary.textContent = summaryText;
-    const body = document.createElement("div");
-    body.className = "round-tool-body";
-    details.append(summary, body);
-    return { details, body };
-  }
-
-  createRevoteTool(roundIndex, wasOpen) {
-    const stage = this.rounds[roundIndex];
-    const count = stage.revoteCandidates.length;
-    const tool = this.createRoundTool(
-      count ? `Переголосование · ${count}` : "Переголосование",
-      "revote-tool",
-      wasOpen,
-    );
-    const hint = document.createElement("span");
-    hint.className = "round-tool-hint";
-    hint.textContent = "Кто проходит дальше";
-    const choices = document.createElement("div");
-    choices.className = "voting-selection-buttons";
-    stage.nominations.forEach(({ playerNumber }) => {
-      const selected = stage.revoteCandidates.includes(playerNumber);
-      choices.append(this.createSelectionButton({
-        playerNumber,
-        selected,
-        label: `${selected ? "Убрать игрока" : "Добавить игрока"} ${playerNumber} ${selected ? "из" : "в"} переголосование`,
-        onClick: () => this.toggleRevoteCandidate(playerNumber),
-      }));
-    });
-    const action = document.createElement("button");
-    action.className = "create-revote-button";
-    action.type = "button";
-    action.disabled = count < 2;
-    action.textContent = count < 2 ? "Выберите минимум двух" : `Создать · ${count}`;
-    action.addEventListener("click", () => this.startRevote());
-    tool.body.append(hint, choices, action);
-    return tool.details;
-  }
-
-  createOutcomeTool(roundIndex, wasOpen) {
-    const stage = this.rounds[roundIndex];
-    const selected = stage.eliminatedPlayers;
-    const summary = stage.noElimination
-      ? "Исход · никто не ушёл"
-      : selected.length
-        ? `Исход · покинули: ${selected.join(", ")}`
-        : "Исход голосования";
-    const tool = this.createRoundTool(summary, "outcome-tool", wasOpen);
-    const hint = document.createElement("span");
-    hint.className = "round-tool-hint";
-    hint.textContent = "Кто покинул стол";
-    const choices = document.createElement("div");
-    choices.className = "voting-selection-buttons";
-    const noElimination = document.createElement("button");
-    noElimination.className = "voting-selection-button outcome-none-button";
-    noElimination.classList.toggle("is-selected", stage.noElimination);
-    noElimination.type = "button";
-    noElimination.textContent = "× Никто";
-    noElimination.setAttribute("aria-pressed", String(stage.noElimination));
-    noElimination.setAttribute(
+  createVoterSequenceInput(roundIndex, nomination) {
+    const input = document.createElement("input");
+    input.className = "voter-sequence-input";
+    input.type = "text";
+    input.inputMode = "numeric";
+    input.autocomplete = "off";
+    input.spellcheck = false;
+    input.placeholder = "1230";
+    input.value = formatVoterSequence(nomination.voters);
+    input.disabled = !this.isStageEditable(roundIndex);
+    input.dataset.nominee = String(nomination.playerNumber);
+    input.maxLength = 10;
+    input.title = "Введите номера подряд: 0 — игрок 10, поэтому 10 — это игроки 1 и 10";
+    input.setAttribute(
       "aria-label",
-      stage.noElimination
-        ? "Снять отметку: никто не ушёл"
-        : "Отметить: никто не ушёл после голосования",
+      `Голосовавшие за игрока ${nomination.playerNumber}, введите номера подряд`,
     );
-    noElimination.addEventListener("click", () => this.toggleNoElimination(roundIndex));
-    choices.append(noElimination);
-    stage.nominations.forEach(({ playerNumber }) => {
-      const isSelected = selected.includes(playerNumber);
-      choices.append(this.createSelectionButton({
-        playerNumber,
-        selected: isSelected,
-        label: `${isSelected ? "Убрать игрока" : "Отметить игрока"} ${playerNumber} ${isSelected ? "из исхода" : "покинувшим стол"}`,
-        onClick: () => this.toggleEliminatedPlayer(roundIndex, playerNumber),
-      }));
+    input.addEventListener("input", () => {
+      input.value = input.value.replace(/\D/g, "");
     });
-    tool.body.append(hint, choices);
-    return tool.details;
+    let committed = false;
+    const commit = (focus = null) => {
+      if (committed) return;
+      committed = true;
+      this.recordVoterSequence(roundIndex, nomination.playerNumber, input.value, focus);
+    };
+    input.addEventListener("blur", (event) => {
+      const relatedInput = event.relatedTarget?.classList?.contains("voter-sequence-input")
+        ? event.relatedTarget
+        : null;
+      commit(relatedInput ? { nomineeNumber: Number(relatedInput.dataset.nominee) } : null);
+    });
+    input.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      commit({ afterNomineeNumber: nomination.playerNumber });
+    });
+    return input;
   }
 
-  renderRound(roundIndex) {
-    const target = this.roundElements[roundIndex];
+  renderStage(roundIndex) {
+    const target = this.stageElements?.[roundIndex];
     if (!target) return;
     const stage = this.rounds[roundIndex];
     const expandedVoters = new Set(
       [...target.nominees.querySelectorAll(".vote-voters-details[open]")]
         .map((details) => Number(details.dataset.nominee)),
     );
-    const revoteOpen = Boolean(target.nominees.querySelector(".revote-tool[open]"));
-    const outcomeOpen = Boolean(target.nominees.querySelector(".outcome-tool[open]"));
     target.nominees.replaceChildren();
-    const assignedVotes = new Set(stage.nominations.flatMap(({ voters }) => voters)).size;
-    const eligibleVoterCount = PLAYER_COUNT - this.getIneligibleVoters(roundIndex).size;
-    target.voteCount.textContent = `${assignedVotes}/${eligibleVoterCount} голосов`;
-    target.compactOutcome.textContent = stageOutcomeSummary(
-      stage,
-      stageHasFollowingRevote(this.rounds, roundIndex),
-    );
+    const analysis = analyzeVotingStage(stage, this.getIneligibleVoters(roundIndex));
+    target.voteCount.textContent = `${analysis.assignedCount}/${analysis.eligibleCount} голосов`;
+    target.status.textContent = this.stageStatusText(roundIndex, analysis);
+    target.status.hidden = target.status.textContent.length === 0;
 
     if (stage.nominations.length === 0) {
       const empty = document.createElement("span");
       empty.className = "no-nominees";
       empty.textContent = "Никто не выставлен";
       target.nominees.append(empty);
+      this.updateRoundHeader(stage.roundNumber);
       return;
     }
 
@@ -437,49 +506,156 @@ export class VotingController {
         expandedVoters.has(nomination.playerNumber),
       ));
     });
+    this.updateRoundHeader(stage.roundNumber);
+  }
 
-    const tools = document.createElement("div");
-    tools.className = "round-tools";
-    if (roundIndex === this.currentRoundIndex) {
-      tools.append(this.createRevoteTool(roundIndex, revoteOpen));
+  stageStatusText(roundIndex, analysis) {
+    const stage = this.rounds[roundIndex];
+    if (stageHasFollowingRevote(this.rounds, roundIndex)) {
+      return `Равенство голосов: ${stage.revoteCandidates.join(", ")} · назначено переголосование`;
     }
-    if (!stageHasFollowingRevote(this.rounds, roundIndex)) {
-      tools.append(this.createOutcomeTool(roundIndex, outcomeOpen));
+    if (stage.eliminatedPlayers.length === 1) {
+      return `Игрок ${stage.eliminatedPlayers[0]} покидает игру`;
     }
-    if (tools.childElementCount > 0) target.nominees.append(tools);
+    if (stage.eliminatedPlayers.length > 1) {
+      return `Игроки ${stage.eliminatedPlayers.join(", ")} покидают игру`;
+    }
+    if (stage.noElimination) return "Никто не покинул игру";
+    if (analysis.status === "tie") {
+      return `Равенство голосов: ${analysis.leaders.join(", ")}`;
+    }
+    return stage.nominations.length > 0 ? "Ожидание всех голосов" : "";
+  }
+
+  updateRoundHeader(roundNumber) {
+    const target = this.roundElements.get(roundNumber);
+    if (!target) return;
+    const finalStageIndex = target.stageIndexes.at(-1);
+    const finalStage = this.rounds[finalStageIndex];
+    const analysis = analyzeVotingStage(finalStage, this.getIneligibleVoters(finalStageIndex));
+    const stagePrefix = finalStage.kind === "revote" ? `${this.stageLabel(finalStage)} · ` : "";
+    target.voteCount.textContent = `${stagePrefix}${analysis.assignedCount}/${analysis.eligibleCount} голосов`;
+    target.compactOutcome.textContent = roundOutcomeSummary(this.rounds, target.stageIndexes);
   }
 
   renderAll() {
     this.roundsElement.replaceChildren();
-    this.roundElements = [];
-    this.rounds.forEach((_, roundIndex) => this.createRound(roundIndex));
+    this.roundElements = new Map();
+    this.stageElements = [];
+    const groups = groupVotingStages(this.rounds);
+    const availableRoundNumbers = new Set(groups.map(({ roundNumber }) => roundNumber));
+    this.collapsedRounds = new Set(
+      [...this.collapsedRounds].filter((roundNumber) => availableRoundNumbers.has(roundNumber)),
+    );
+    groups.forEach((group) => this.createRound(group));
     this.updateNominationButtons();
+    this.updateNextButton();
   }
 
   updateNominationButtons() {
-    const currentNominees = this.rounds[this.currentRoundIndex].nominations
+    const nominationStageIndex = this.getCurrentNominationStageIndex();
+    const currentNominees = this.rounds[nominationStageIndex].nominations
       .map(({ playerNumber }) => playerNumber);
+    const isRevote = this.currentRoundIndex !== nominationStageIndex;
     this.nominationButtons.forEach((button, playerNumber) => {
       const nominated = currentNominees.includes(playerNumber);
       button.classList.toggle("is-nominated", nominated);
-      button.textContent = nominated ? "Снять" : "Выставить";
+      button.disabled = false;
+      button.textContent = isRevote && nominated ? "В круге" : nominated ? "Снять" : "Выставить";
       button.setAttribute("aria-pressed", String(nominated));
+      button.title = isRevote ? "Изменение состава перестроит переголосование" : "";
     });
+  }
+
+  getCurrentNominationStageIndex() {
+    const currentRoundNumber = this.rounds[this.currentRoundIndex].roundNumber;
+    const stageIndex = this.rounds.findIndex((stage) => (
+      stage.roundNumber === currentRoundNumber && stage.kind === "round"
+    ));
+    return stageIndex === -1 ? this.currentRoundIndex : stageIndex;
+  }
+
+  isStageEditable(roundIndex) {
+    return this.rounds[roundIndex].roundNumber === this.rounds[this.currentRoundIndex].roundNumber;
+  }
+
+  updateNextButton() {
+    const stage = this.rounds[this.currentRoundIndex];
+    const canStartNextRound = stage.nominations.length === 0
+      || stage.noElimination
+      || stage.eliminatedPlayers.length > 0;
+    this.nextButton.disabled = !canStartNextRound;
+    this.nextButton.title = canStartNextRound ? "" : "Сначала распределите все голоса";
   }
 
   getIneligibleVoters(roundIndex) {
     return ineligibleVotersForStage(this.rounds, roundIndex, this.killedFromRound);
   }
 
-  reconcileVotingEligibility(fromRoundIndex) {
+  reconcileVotingEligibility(
+    fromRoundIndex,
+    recalculateOutcomes = false,
+    previousKilledFromRound = this.killedFromRound,
+    completeMissingOutcome = false,
+  ) {
+    const changedStageIndexes = [];
     for (let roundIndex = fromRoundIndex; roundIndex < this.rounds.length; roundIndex += 1) {
       const ineligibleVoters = this.getIneligibleVoters(roundIndex);
-      this.rounds[roundIndex] = removeVoterChoices(this.rounds[roundIndex], ineligibleVoters);
-      this.renderRound(roundIndex);
+      const previousIneligibleVoters = ineligibleVotersForStage(
+        this.rounds,
+        roundIndex,
+        previousKilledFromRound,
+      );
+      const eligibilityChanged = ineligibleVoters.size !== previousIneligibleVoters.size
+        || [...ineligibleVoters].some((playerNumber) => !previousIneligibleVoters.has(playerNumber));
+      const stage = this.rounds[roundIndex];
+      const cleanedStage = removeVoterChoices(stage, ineligibleVoters);
+      if (
+        eligibilityChanged
+        || JSON.stringify(stage.nominations) !== JSON.stringify(cleanedStage.nominations)
+      ) {
+        changedStageIndexes.push(roundIndex);
+      }
+      this.rounds[roundIndex] = cleanedStage;
+    }
+    if (recalculateOutcomes) {
+      for (const stageIndex of changedStageIndexes) {
+        if (stageIndex >= this.rounds.length) break;
+        if (this.synchronizeResolution(stageIndex)) break;
+      }
+    }
+    if (completeMissingOutcome) this.completeRestoredMissingOutcomes();
+    this.renderAll();
+  }
+
+  completeRestoredMissingOutcomes() {
+    for (let stageIndex = 0; stageIndex < this.rounds.length; stageIndex += 1) {
+      const stage = this.rounds[stageIndex];
+      const ineligibleVoters = this.getIneligibleVoters(stageIndex);
+      this.rounds[stageIndex] = removeVoterChoices(stage, ineligibleVoters);
+      if (this.resolutionSignature(stageIndex) !== "incomplete") continue;
+
+      const analysis = analyzeVotingStage(this.rounds[stageIndex], ineligibleVoters);
+      if (analysis.status === "winner") {
+        this.rounds[stageIndex].eliminatedPlayers = [analysis.leaders[0]];
+        continue;
+      }
+      if (analysis.status !== "tie") continue;
+
+      const hasLaterRound = this.rounds
+        .slice(stageIndex + 1)
+        .some((laterStage) => laterStage.roundNumber !== stage.roundNumber);
+      if (hasLaterRound) {
+        this.rounds[stageIndex].noElimination = true;
+      } else {
+        this.synchronizeResolution(stageIndex);
+        break;
+      }
     }
   }
 
   setNightKills(kills) {
+    const previousKilledFromRound = this.killedFromRound;
     const killedFromRound = new Map();
     (Array.isArray(kills) ? kills : []).forEach((kill) => {
       const playerNumber = kill?.playerNumber;
@@ -495,11 +671,20 @@ export class VotingController {
       }
     });
     this.killedFromRound = killedFromRound;
-    this.reconcileVotingEligibility(0);
+    const completeMissingOutcome = !this.hasAppliedNightKills;
+    const recalculateOutcomes = this.hasAppliedNightKills;
+    this.hasAppliedNightKills = true;
+    this.reconcileVotingEligibility(
+      0,
+      recalculateOutcomes,
+      previousKilledFromRound,
+      completeMissingOutcome,
+    );
   }
 
   toggleNomination(playerNumber) {
-    const stage = this.rounds[this.currentRoundIndex];
+    const nominationStageIndex = this.getCurrentNominationStageIndex();
+    const stage = this.rounds[nominationStageIndex];
     const index = stage.nominations.findIndex((nomination) => nomination.playerNumber === playerNumber);
     if (index === -1) {
       stage.nominations.push({ playerNumber, voters: [] });
@@ -508,73 +693,121 @@ export class VotingController {
       stage.revoteCandidates = stage.revoteCandidates.filter((number) => number !== playerNumber);
       stage.eliminatedPlayers = stage.eliminatedPlayers.filter((number) => number !== playerNumber);
     }
-    this.renderRound(this.currentRoundIndex);
-    this.updateNominationButtons();
-    this.onChange();
-  }
-
-  toggleRevoteCandidate(playerNumber) {
-    const stage = this.rounds[this.currentRoundIndex];
-    const index = stage.revoteCandidates.indexOf(playerNumber);
-    if (index === -1) stage.revoteCandidates.push(playerNumber);
-    else stage.revoteCandidates.splice(index, 1);
-    this.renderRound(this.currentRoundIndex);
-    this.onChange();
-  }
-
-  toggleEliminatedPlayer(roundIndex, playerNumber) {
-    const stage = this.rounds[roundIndex];
-    const index = stage.eliminatedPlayers.indexOf(playerNumber);
-    if (index === -1) {
-      stage.eliminatedPlayers.push(playerNumber);
-      stage.noElimination = false;
+    const structureChanged = this.synchronizeResolution(nominationStageIndex);
+    if (structureChanged) this.renderAll();
+    else {
+      this.renderStage(nominationStageIndex);
+      this.updateNominationButtons();
+      this.updateNextButton();
     }
-    else stage.eliminatedPlayers.splice(index, 1);
-    this.renderRound(roundIndex);
-    this.reconcileVotingEligibility(roundIndex + 1);
     this.onChange();
   }
 
-  toggleNoElimination(roundIndex) {
-    const stage = this.rounds[roundIndex];
-    stage.noElimination = !stage.noElimination;
-    if (stage.noElimination) stage.eliminatedPlayers = [];
-    this.renderRound(roundIndex);
-    this.reconcileVotingEligibility(roundIndex + 1);
+  recordVote(roundIndex, nomineeNumber, voterNumber, ineligibleVoters) {
+    this.rounds[roundIndex] = setVoterChoice(
+      this.rounds[roundIndex],
+      nomineeNumber,
+      voterNumber,
+      ineligibleVoters,
+    );
+    const structureChanged = this.synchronizeResolution(roundIndex);
+    if (structureChanged) this.renderAll();
+    else {
+      this.renderStage(roundIndex);
+      this.updateNextButton();
+    }
+    if (structureChanged) this.roundsElement.scrollTop = this.roundsElement.scrollHeight;
     this.onChange();
   }
 
-  setCurrentRound(roundIndex) {
-    const previousRoundIndex = this.currentRoundIndex;
-    this.roundElements[previousRoundIndex]?.round.classList.remove("is-current");
-    this.currentRoundIndex = roundIndex;
-    this.renderRound(previousRoundIndex);
+  recordVoterSequence(roundIndex, nomineeNumber, value, focus = null) {
+    this.rounds[roundIndex] = setNominationVoters(
+      this.rounds[roundIndex],
+      nomineeNumber,
+      parseVoterSequence(value),
+      this.getIneligibleVoters(roundIndex),
+    );
+    const structureChanged = this.synchronizeResolution(roundIndex);
+    if (structureChanged) this.renderAll();
+    else {
+      this.renderStage(roundIndex);
+      this.updateNextButton();
+    }
+    if (structureChanged) this.roundsElement.scrollTop = this.roundsElement.scrollHeight;
+    if (structureChanged) this.focusVoterSequence(this.currentRoundIndex);
+    else if (focus) this.focusVoterSequence(roundIndex, focus);
+    this.onChange();
+  }
+
+  focusVoterSequence(roundIndex, { nomineeNumber, afterNomineeNumber } = {}) {
+    const target = this.stageElements?.[roundIndex];
+    if (!target) return;
+    const inputs = [...target.nominees.querySelectorAll(".voter-sequence-input:not(:disabled)")];
+    let input = Number.isInteger(nomineeNumber)
+      ? inputs.find((candidate) => Number(candidate.dataset.nominee) === nomineeNumber)
+      : null;
+    if (!input && Number.isInteger(afterNomineeNumber)) {
+      const currentIndex = inputs.findIndex(
+        (candidate) => Number(candidate.dataset.nominee) === afterNomineeNumber,
+      );
+      input = inputs[currentIndex + 1];
+    }
+    if (!input && !Number.isInteger(afterNomineeNumber)) input = inputs[0];
+    input?.focus({ preventScroll: true });
+  }
+
+  resolutionSignature(stageIndex) {
+    const stage = this.rounds[stageIndex];
+    if (stageHasFollowingRevote(this.rounds, stageIndex)) {
+      return `tie:${stage.revoteCandidates.join(",")}`;
+    }
+    if (stage.eliminatedPlayers.length === 1) return `winner:${stage.eliminatedPlayers[0]}`;
+    if (stage.noElimination) return "nobody";
+    return "incomplete";
+  }
+
+  synchronizeResolution(stageIndex) {
+    const stage = this.rounds[stageIndex];
+    const analysis = analyzeVotingStage(stage, this.getIneligibleVoters(stageIndex));
+    const desiredSignature = analysis.status === "winner"
+      ? `winner:${analysis.leaders[0]}`
+      : analysis.status === "tie"
+        ? `tie:${analysis.leaders.join(",")}`
+        : "incomplete";
+    if (this.resolutionSignature(stageIndex) === desiredSignature) return false;
+
+    const hadFollowingStages = stageIndex < this.rounds.length - 1;
+    this.rounds.splice(stageIndex + 1);
+    this.currentRoundIndex = stageIndex;
+    stage.revoteCandidates = [];
+    stage.eliminatedPlayers = [];
+    stage.noElimination = false;
+
+    if (analysis.status === "winner") {
+      stage.eliminatedPlayers = [analysis.leaders[0]];
+    } else if (analysis.status === "tie") {
+      stage.revoteCandidates = [...analysis.leaders];
+      this.rounds.push(buildRevoteStage(stage, analysis.leaders));
+      this.currentRoundIndex = stageIndex + 1;
+    }
+    return hadFollowingStages || analysis.status === "tie";
   }
 
   startNextRound() {
+    const currentStage = this.rounds[this.currentRoundIndex];
+    if (
+      currentStage.nominations.length > 0
+      && currentStage.eliminatedPlayers.length === 0
+      && !currentStage.noElimination
+    ) return;
+    if (currentStage.nominations.length === 0) currentStage.noElimination = true;
     const nextRoundNumber = this.rounds.reduce(
       (maximum, stage) => stage.kind === "round" ? Math.max(maximum, stage.roundNumber + 1) : maximum,
       0,
     );
-    this.setCurrentRound(this.rounds.length);
+    this.currentRoundIndex = this.rounds.length;
     this.rounds.push(emptyRound(nextRoundNumber));
-    this.createRound(this.currentRoundIndex);
-    this.updateNominationButtons();
-    this.roundsElement.scrollTop = this.roundsElement.scrollHeight;
-    this.onChange();
-  }
-
-  startRevote() {
-    const sourceStage = this.rounds[this.currentRoundIndex];
-    if (sourceStage.revoteCandidates.length < 2) return;
-    const sourceRoundIndex = this.currentRoundIndex;
-    sourceStage.eliminatedPlayers = [];
-    sourceStage.noElimination = false;
-    this.setCurrentRound(this.rounds.length);
-    this.rounds.push(buildRevoteStage(sourceStage));
-    this.renderRound(sourceRoundIndex);
-    this.createRound(this.currentRoundIndex);
-    this.updateNominationButtons();
+    this.renderAll();
     this.roundsElement.scrollTop = this.roundsElement.scrollHeight;
     this.onChange();
   }
@@ -607,6 +840,7 @@ export class VotingController {
   restore(rounds, currentRoundIndex) {
     this.rounds = normalizeVotingStages(rounds);
     this.collapsedRounds.clear();
+    this.hasAppliedNightKills = false;
     const storedIndex = Number(currentRoundIndex);
     this.currentRoundIndex = Number.isInteger(storedIndex)
       ? Math.min(Math.max(0, storedIndex), this.rounds.length - 1)
