@@ -393,6 +393,36 @@ test("a repeated three-way tie among nine voters ends without a lift choice", ()
   assert.equal(controller.rounds[1].tieBreakChoice, null);
 });
 
+test("a narrowed revote stops when its own candidates tie again", () => {
+  const controller = automaticController([{
+    kind: "round",
+    roundNumber: 0,
+    nominations: [
+      { playerNumber: 1, voters: [1, 2, 3] },
+      { playerNumber: 2, voters: [4, 5, 6] },
+      { playerNumber: 3, voters: [7, 8, 9] },
+      { playerNumber: 4, voters: [10] },
+    ],
+  }]);
+
+  assert.equal(controller.synchronizeResolution(0), true);
+  assert.deepEqual(controller.rounds[0].revoteCandidates, [1, 2, 3]);
+
+  controller.rounds[1].nominations[0].voters = [2, 3, 4, 5, 6];
+  controller.rounds[1].nominations[1].voters = [1, 7, 8, 9, 10];
+  controller.rounds[1].nominations[2].voters = [];
+  assert.equal(controller.synchronizeResolution(1), true);
+  assert.deepEqual(controller.rounds[1].revoteCandidates, [1, 2]);
+  assert.equal(controller.rounds[2].revoteNumber, 2);
+
+  controller.rounds[2].nominations[0].voters = [2, 3, 4, 5, 6];
+  controller.rounds[2].nominations[1].voters = [1, 7, 8, 9, 10];
+  assert.equal(controller.synchronizeResolution(2), false);
+  assert.equal(controller.rounds.length, 3);
+  const analysis = analyzeVotingStage(controller.rounds[2]);
+  assert.equal(requiresTieBreak(controller.rounds, 2, analysis), true);
+});
+
 test("removing the last vote clears an automatic outcome", () => {
   const controller = automaticController([{
     nominations: [

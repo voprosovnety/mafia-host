@@ -167,13 +167,12 @@ export function analyzeVotingStage(stage, ineligibleVoters = new Set()) {
 
 export function requiresTieBreak(stages, stageIndex, analysis) {
   const stage = stages[stageIndex];
-  const previousStage = stages[stageIndex - 1];
   return analysis?.status === "tie"
     && stage?.kind === "revote"
-    && stage.revoteNumber === 1
-    && previousStage?.kind === "round"
-    && previousStage.roundNumber === stage.roundNumber
-    && samePlayerNumbers(previousStage.revoteCandidates, analysis.leaders);
+    && samePlayerNumbers(
+      stage.nominations.map(({ playerNumber }) => playerNumber),
+      analysis.leaders,
+    );
 }
 
 export function isThreeWayTieAmongNine(analysis) {
