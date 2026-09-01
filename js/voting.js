@@ -94,6 +94,17 @@ export function stageHasFollowingRevote(stages, stageIndex) {
   return nextStage.revoteNumber === expectedRevoteNumber;
 }
 
+export function stageOutcomeSummary(stage, hasFollowingRevote = false) {
+  if (stage.eliminatedPlayers.length === 1) {
+    return `Покинул игру: ${stage.eliminatedPlayers[0]}`;
+  }
+  if (stage.eliminatedPlayers.length > 1) {
+    return `Покинули игру: ${stage.eliminatedPlayers.join(", ")}`;
+  }
+  if (stage.noElimination || hasFollowingRevote) return "Никто не покинул";
+  return "Исход не указан";
+}
+
 export function ineligibleVotersForStage(stages, stageIndex, killedFromRound = new Map()) {
   const ineligibleVoters = new Set();
   stages.slice(0, stageIndex).forEach((stage) => {
@@ -165,6 +176,7 @@ export class VotingController {
     this.rounds = [emptyRound(0)];
     this.currentRoundIndex = 0;
     this.roundElements = [];
+    this.collapsedRounds = new Set();
     this.nominationButtons = new Map();
     this.killedFromRound = new Map();
 
@@ -191,23 +203,44 @@ export class VotingController {
     round.className = "voting-round";
     round.classList.toggle("is-current", roundIndex === this.currentRoundIndex);
     round.classList.toggle("is-revote", stage.kind === "revote");
+    round.classList.toggle("is-collapsed", this.collapsedRounds.has(roundIndex));
     round.dataset.round = String(roundIndex);
 
-    const header = document.createElement("div");
+    const header = document.createElement("button");
     header.className = "round-header";
+    header.type = "button";
+    header.setAttribute("aria-expanded", String(!this.collapsedRounds.has(roundIndex)));
     const label = document.createElement("span");
     label.className = "round-label";
     label.textContent = this.stageLabel(stage);
+    const headerMeta = document.createElement("span");
+    headerMeta.className = "round-header-meta";
     const voteCount = document.createElement("span");
     voteCount.className = "round-vote-count";
-    header.append(label, voteCount);
+    const compactOutcome = document.createElement("span");
+    compactOutcome.className = "round-compact-outcome";
+    headerMeta.append(voteCount, compactOutcome);
+    header.append(label, headerMeta);
 
     const nominees = document.createElement("div");
     nominees.className = "nominees";
+    nominees.id = `voting-round-body-${roundIndex}`;
+    header.setAttribute("aria-controls", nominees.id);
+    header.addEventListener("click", () => this.toggleRound(roundIndex));
     round.append(header, nominees);
     this.roundsElement.append(round);
-    this.roundElements.push({ round, nominees, voteCount });
+    this.roundElements.push({ round, header, nominees, voteCount, compactOutcome });
     this.renderRound(roundIndex);
+  }
+
+  toggleRound(roundIndex) {
+    const target = this.roundElements[roundIndex];
+    if (!target) return;
+    const isCollapsed = !this.collapsedRounds.has(roundIndex);
+    if (isCollapsed) this.collapsedRounds.add(roundIndex);
+    else this.collapsedRounds.delete(roundIndex);
+    target.round.classList.toggle("is-collapsed", isCollapsed);
+    target.header.setAttribute("aria-expanded", String(!isCollapsed));
   }
 
   createVoterButton(roundIndex, nomination, voterNumber) {
@@ -384,6 +417,10 @@ export class VotingController {
     const assignedVotes = new Set(stage.nominations.flatMap(({ voters }) => voters)).size;
     const eligibleVoterCount = PLAYER_COUNT - this.getIneligibleVoters(roundIndex).size;
     target.voteCount.textContent = `${assignedVotes}/${eligibleVoterCount} голосов`;
+    target.compactOutcome.textContent = stageOutcomeSummary(
+      stage,
+      stageHasFollowingRevote(this.rounds, roundIndex),
+    );
 
     if (stage.nominations.length === 0) {
       const empty = document.createElement("span");
@@ -545,6 +582,7 @@ export class VotingController {
   reset() {
     this.currentRoundIndex = 0;
     this.rounds = [emptyRound(0)];
+    this.collapsedRounds.clear();
     this.renderAll();
     this.roundsElement.scrollTop = 0;
     this.onChange();
@@ -568,6 +606,7 @@ export class VotingController {
 
   restore(rounds, currentRoundIndex) {
     this.rounds = normalizeVotingStages(rounds);
+    this.collapsedRounds.clear();
     const storedIndex = Number(currentRoundIndex);
     this.currentRoundIndex = Number.isInteger(storedIndex)
       ? Math.min(Math.max(0, storedIndex), this.rounds.length - 1)

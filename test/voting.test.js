@@ -8,6 +8,7 @@ import {
   removeVoterChoices,
   setVoterChoice,
   stageHasFollowingRevote,
+  stageOutcomeSummary,
   VotingController,
 } from "../js/voting.js";
 
@@ -105,6 +106,53 @@ test("an outcome belongs only to the final stage of a revote chain", () => {
   assert.deepEqual(stages[0].eliminatedPlayers, []);
   assert.equal(stageHasFollowingRevote(stages, 1), false);
   assert.deepEqual(stages[1].eliminatedPlayers, [8]);
+});
+
+test("collapsed voting stages summarize only their outcome", () => {
+  const stages = normalizeVotingStages([
+    { nominations: [2, 5], eliminatedPlayers: [5] },
+    { nominations: [3, 6], eliminatedPlayers: [3, 6] },
+    { nominations: [7], noElimination: true },
+    { nominations: [8] },
+  ]);
+
+  assert.equal(stageOutcomeSummary(stages[0]), "Покинул игру: 5");
+  assert.equal(stageOutcomeSummary(stages[1]), "Покинули игру: 3, 6");
+  assert.equal(stageOutcomeSummary(stages[2]), "Никто не покинул");
+  assert.equal(stageOutcomeSummary(stages[3]), "Исход не указан");
+  assert.equal(stageOutcomeSummary(stages[3], true), "Никто не покинул");
+});
+
+test("a voting round header toggles its collapsed state and accessibility state", () => {
+  const controller = Object.create(VotingController.prototype);
+  const classes = new Set();
+  const attributes = new Map();
+  controller.collapsedRounds = new Set();
+  controller.roundElements = [{
+    round: {
+      classList: {
+        toggle(name, enabled) {
+          if (enabled) classes.add(name);
+          else classes.delete(name);
+        },
+      },
+    },
+    header: {
+      setAttribute(name, value) {
+        attributes.set(name, value);
+      },
+    },
+  }];
+
+  controller.toggleRound(0);
+  assert.equal(controller.collapsedRounds.has(0), true);
+  assert.equal(classes.has("is-collapsed"), true);
+  assert.equal(attributes.get("aria-expanded"), "false");
+
+  controller.toggleRound(0);
+  assert.equal(controller.collapsedRounds.has(0), false);
+  assert.equal(classes.has("is-collapsed"), false);
+  assert.equal(attributes.get("aria-expanded"), "true");
 });
 
 test("a player eliminated by voting cannot vote in later stages", () => {
