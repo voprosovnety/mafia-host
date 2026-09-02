@@ -126,31 +126,31 @@
           <p class="page-status" id="history-status" role="status"></p>
           <div class="history-list" id="history-list"></div>
           <div class="history-table-wrap">
-            <p class="history-empty" id="history-empty">Сохранённых игр пока нет</p>
+            <p class="history-empty" id="history-empty">Сохранённые игры появятся здесь после первой игры</p>
           </div>
         </section>
       </section>
 
       <section class="page-view data-page" data-view="leaderboard" data-title="Общая таблица" hidden>
         <section class="leaderboard-panel" aria-labelledby="leaderboard-heading">
-          <div class="leaderboard-heading-row">
+          <div class="leaderboard-toolbar">
             <div>
               <span class="section-eyebrow">Результаты игроков</span>
               <h1 id="leaderboard-heading">Общая таблица</h1>
             </div>
+            <div class="leaderboard-filters" aria-label="Интервал игр">
+              <label>
+                <span>Начало</span>
+                <input id="leaderboard-from" type="datetime-local" step="1" />
+              </label>
+              <label>
+                <span>Конец</span>
+                <input id="leaderboard-to" type="datetime-local" step="1" />
+              </label>
+              <button id="reset-leaderboard-filter" type="button">Всё время</button>
+              <p id="leaderboard-filter-status" role="status">Учтено: 0 игр из 0</p>
+            </div>
             <span id="leaderboard-count">0 игроков</span>
-          </div>
-          <div class="leaderboard-filters" aria-label="Интервал игр">
-            <label>
-              <span>Начало интервала</span>
-              <input id="leaderboard-from" type="datetime-local" step="1" />
-            </label>
-            <label>
-              <span>Конец интервала</span>
-              <input id="leaderboard-to" type="datetime-local" step="1" />
-            </label>
-            <button id="reset-leaderboard-filter" type="button">Показать всё время</button>
-            <p id="leaderboard-filter-status" role="status">Учтено: 0 игр из 0</p>
           </div>
           <div class="leaderboard-table-wrap">
             <table class="leaderboard-table">
@@ -214,8 +214,10 @@
             <tbody id="edit-game-body"></tbody>
           </table>
         </div>
-        <p class="edit-game-error" id="edit-game-error" role="alert"></p>
-        <button class="edit-game-save-button" id="save-edited-game" type="submit">Сохранить изменения</button>
+        <div class="edit-game-footer">
+          <p class="edit-game-error" id="edit-game-error" role="alert"></p>
+          <button class="edit-game-save-button" id="save-edited-game" type="submit">Сохранить изменения</button>
+        </div>
       </form>
     </dialog>
   </body>
