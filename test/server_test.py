@@ -256,9 +256,9 @@ class GamesDatabaseTest(unittest.TestCase):
         self.assertTrue(all(player["technicalFouls"] == 0 and player["notes"] == "" for player in players))
         self.assertEqual(self.database.list_games()[0]["bestMove"], [None, None, None])
 
-    def test_more_than_two_technical_fouls_are_rejected(self):
+    def test_second_technical_foul_is_rejected(self):
         invalid = sample_game()
-        invalid["players"][0]["technicalFouls"] = 3
+        invalid["players"][0]["technicalFouls"] = 2
         with self.assertRaises(ValidationError):
             self.database.add_game(invalid)
 

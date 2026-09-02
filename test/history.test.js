@@ -41,7 +41,7 @@ test("positive manual score is labeled as an extra", () => {
   ]);
 });
 
-test("two technical fouls are grouped into one breakdown row", () => {
+test("a legacy second technical foul is displayed as one counted foul", () => {
   assert.deepEqual(scoreBreakdownItems({
     base: 0,
     extra: 0,
@@ -49,6 +49,6 @@ test("two technical fouls are grouped into one breakdown row", () => {
     lh: 0,
     ci: 0,
   }), [
-    { label: "Техфол ×2", value: "−0.6" },
+    { label: "Техфол", value: "−0.3" },
   ]);
 });
