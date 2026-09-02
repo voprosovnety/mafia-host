@@ -98,7 +98,7 @@ export class PlayersController {
     number.className = "player-number";
     number.setAttribute("aria-hidden", "true");
     const numberValue = document.createElement("span");
-    numberValue.textContent = `${playerNumber}.`;
+    numberValue.textContent = String(playerNumber).padStart(2, "0");
     const firstKilledBadge = document.createElement("span");
     firstKilledBadge.className = "first-killed-badge";
     firstKilledBadge.textContent = "ПУ";
