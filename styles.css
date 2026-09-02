@@ -900,7 +900,8 @@ kbd {
   gap: var(--space-1);
   align-items: end;
   min-width: 0;
-  padding: var(--space-2) var(--space-1);
+  padding: var(--space-2) 0;
+  border-left: 3px solid transparent;
   border-bottom: 1px solid var(--line);
   background: var(--panel);
 }
@@ -982,20 +983,25 @@ kbd {
 }
 
 .nominate-button {
-  width: 100%;
+  display: grid;
+  place-items: center;
+  width: 2.35rem;
   min-width: 0;
-  min-height: 2.25rem;
-  padding: 0.3rem 0.2rem;
+  height: 2.25rem;
+  min-height: 0;
+  margin: 0 auto;
+  padding: 0;
   border: 1px solid var(--line);
   border-radius: 0;
   background: transparent;
   color: var(--muted);
-  font-size: 0.6rem;
-  font-weight: 700;
-  letter-spacing: 0;
-  white-space: nowrap;
-  text-transform: uppercase;
   cursor: pointer;
+}
+
+.nominate-button svg {
+  width: 1.15rem;
+  height: 1.15rem;
+  fill: currentcolor;
 }
 
 .nominate-button:hover {

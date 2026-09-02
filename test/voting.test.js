@@ -297,10 +297,11 @@ test("nomination state is mirrored on the numbered player rail", () => {
     };
   };
   const row = { classList: classList() };
+  const attributes = new Map();
   const button = {
     classList: classList(),
     closest: () => row,
-    setAttribute: () => {},
+    setAttribute: (name, value) => attributes.set(name, value),
   };
   controller.nominationButtons = new Map([[2, button]]);
 
@@ -308,7 +309,8 @@ test("nomination state is mirrored on the numbered player rail", () => {
 
   assert.equal(button.classList.contains("is-nominated"), true);
   assert.equal(row.classList.contains("is-nominated"), true);
-  assert.equal(button.textContent, "Снять");
+  assert.equal(attributes.get("aria-label"), "Снять игрока 2 с голосования");
+  assert.equal(button.title, "Снять игрока 2 с голосования");
 });
 
 test("controller stores a unique automatic winner", () => {

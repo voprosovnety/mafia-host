@@ -9,6 +9,23 @@ import {
   shuffledCopy,
 } from "./domain.js";
 
+function createNominationIcon() {
+  const svgNamespace = "http://www.w3.org/2000/svg";
+  const icon = document.createElementNS(svgNamespace, "svg");
+  icon.setAttribute("viewBox", "0 0 24 24");
+  icon.setAttribute("aria-hidden", "true");
+  icon.setAttribute("focusable", "false");
+
+  const head = document.createElementNS(svgNamespace, "path");
+  head.setAttribute("d", "M13.7 2.8 21.2 10.3 18.4 13.1 10.9 5.6Z");
+  const handle = document.createElementNS(svgNamespace, "path");
+  handle.setAttribute("d", "M10.7 7.1 13.6 10 6.5 17.1 3.6 14.2Z");
+  const base = document.createElementNS(svgNamespace, "path");
+  base.setAttribute("d", "M3 19.3h11v2.2H3Z");
+  icon.append(head, handle, base);
+  return icon;
+}
+
 export class PlayersController {
   constructor({
     list,
@@ -125,8 +142,9 @@ export class PlayersController {
     const nominate = document.createElement("button");
     nominate.className = "nominate-button";
     nominate.type = "button";
-    nominate.textContent = "Выставить";
-    nominate.setAttribute("aria-label", `Выставить игрока ${playerNumber}`);
+    nominate.append(createNominationIcon());
+    nominate.title = `Выставить игрока ${playerNumber} на голосование`;
+    nominate.setAttribute("aria-label", `Выставить игрока ${playerNumber} на голосование`);
     nominate.setAttribute("aria-pressed", "false");
 
     const base = document.createElement("output");
