@@ -282,6 +282,35 @@ function automaticController(rounds) {
   return controller;
 }
 
+test("nomination state is mirrored on the numbered player rail", () => {
+  const controller = automaticController([{
+    nominations: [2],
+  }]);
+  const classList = () => {
+    const names = new Set();
+    return {
+      toggle(name, enabled) {
+        if (enabled) names.add(name);
+        else names.delete(name);
+      },
+      contains: (name) => names.has(name),
+    };
+  };
+  const row = { classList: classList() };
+  const button = {
+    classList: classList(),
+    closest: () => row,
+    setAttribute: () => {},
+  };
+  controller.nominationButtons = new Map([[2, button]]);
+
+  controller.updateNominationButtons();
+
+  assert.equal(button.classList.contains("is-nominated"), true);
+  assert.equal(row.classList.contains("is-nominated"), true);
+  assert.equal(button.textContent, "Снять");
+});
+
 test("controller stores a unique automatic winner", () => {
   const controller = automaticController([{
     nominations: [

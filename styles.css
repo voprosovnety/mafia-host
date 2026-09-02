@@ -1037,6 +1037,12 @@ kbd {
   text-align: right;
 }
 
+/* The seating rail mirrors a nomination without replacing the button's text state. */
+.player-row.is-nominated .player-number {
+  box-shadow: inset 3px 0 0 var(--accent);
+  color: var(--accent);
+}
+
 .first-killed-badge {
   padding: 0.08rem 0.2rem;
   border: 1px solid #4f9bc4;
