@@ -190,7 +190,7 @@ export class PlayersController {
       technicalFault.type = "button";
       technicalFault.textContent = "Т";
       technicalFault.dataset.technicalFault = String(faultNumber);
-      technicalFault.title = `Техфол ${faultNumber}: штраф −0.3`;
+      technicalFault.title = "Техфол: штраф −0.3";
       technicalFault.addEventListener("click", () => {
         const currentCount = Number(row.dataset.technicalFaults);
         const nextCount = faultNumber <= currentCount ? faultNumber - 1 : faultNumber;

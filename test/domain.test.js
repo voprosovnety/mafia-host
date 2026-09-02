@@ -45,11 +45,11 @@ test("base score follows the role team and winner", () => {
   });
 });
 
-test("each technical foul deducts 0.3 up to a maximum of two", () => {
+test("only the first technical foul is counted with a 0.3 penalty", () => {
   assert.equal(calculateTechnicalFoulPenalty(0), 0);
   assert.equal(calculateTechnicalFoulPenalty(1), -0.3);
-  assert.equal(calculateTechnicalFoulPenalty(2), -0.6);
-  assert.equal(calculateTechnicalFoulPenalty(3), -0.6);
+  assert.equal(calculateTechnicalFoulPenalty(2), -0.3);
+  assert.equal(calculateTechnicalFoulPenalty(3), -0.3);
 });
 
 test("best move awards 0.5 for two black roles and 0.8 for three", () => {
@@ -66,10 +66,10 @@ test("best move awards 0.5 for two black roles and 0.8 for three", () => {
   assert.equal(calculateBestMoveBonus([2, 3, 4], null), 0);
 });
 
-test("manual extra, technical fouls, best move and CI are separate score components", () => {
+test("manual extra, technical foul, best move and CI are separate score components", () => {
   assert.deepEqual(calculateScores("Мирный", "0.2", "red", 0.5, 0.3, 2), {
     team: "red", base: 1, extra: 0.2, lh: 0.5, ci: 0.3,
-    technicalFouls: 2, technicalPenalty: -0.6, total: 1.4,
+    technicalFouls: 1, technicalPenalty: -0.3, total: 1.7,
   });
   const snapshot = buildGameSnapshot([
     {
