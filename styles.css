@@ -23,7 +23,7 @@
   --space-6: 1.5rem;
   --header-height: 3rem;
   --control-height: 2.25rem;
-  --player-columns: 2.75rem minmax(10rem, 1fr) 5.5rem 7.75rem 2.4rem 4.3rem 3rem 3.4rem 3.6rem 2.8rem;
+  --player-columns: 2.75rem minmax(10rem, 1fr) 5.5rem 5.75rem 2.4rem 4.3rem 3rem 3.4rem 3.6rem 4.4rem;
 }
 
 * {
@@ -177,7 +177,7 @@ textarea {
 
 .control-column {
   display: grid;
-  grid-template-rows: 9rem minmax(11rem, 1fr) auto auto;
+  grid-template-rows: auto minmax(11rem, 1fr) auto auto;
   min-height: 0;
   align-self: stretch;
   overflow: hidden;
@@ -262,16 +262,10 @@ textarea {
   grid-column: 1 / -1;
   grid-row: 3;
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
   gap: var(--space-2);
-  margin: var(--space-2) 0 0;
-}
-
-.timer-hint {
   margin: 0;
-  color: var(--muted);
-  font-size: 0.82rem;
 }
 
 .reset-button {
@@ -891,7 +885,8 @@ kbd {
 
 .players-table {
   max-height: calc(100dvh - var(--header-height) - (var(--space-4) * 2));
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   border: 1px solid var(--line);
   background: var(--panel);
 }
@@ -904,7 +899,7 @@ kbd {
   grid-template-columns: var(--player-columns);
   gap: var(--space-1);
   align-items: end;
-  min-width: 51.5rem;
+  min-width: 0;
   padding: var(--space-2) var(--space-1);
   border-bottom: 1px solid var(--line);
   background: var(--panel);
@@ -957,12 +952,16 @@ kbd {
 }
 
 .players-heading-row > span {
+  min-width: 0;
+  overflow: hidden;
   color: var(--muted);
   font-size: 0.7rem;
   font-weight: 700;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.08em;
   text-align: center;
+  text-overflow: ellipsis;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .players-list {
@@ -976,7 +975,7 @@ kbd {
   grid-template-columns: var(--player-columns);
   gap: var(--space-1);
   align-items: center;
-  min-width: 51.5rem;
+  min-width: 0;
   min-height: 3.05rem;
   border-left: 3px solid transparent;
   border-bottom: 1px solid var(--line);
@@ -1219,7 +1218,7 @@ kbd {
 
 .faults {
   display: grid;
-  grid-template-columns: repeat(4, 1.75rem);
+  grid-template-columns: repeat(3, 1.75rem);
   justify-content: end;
   gap: var(--space-1);
 }
@@ -2365,7 +2364,7 @@ kbd {
   cursor: pointer;
 }
 
-@media (max-width: 1179px) and (min-width: 900px) {
+@media (max-width: 1279px) and (min-width: 1180px) {
   .game-board {
     grid-template-columns: minmax(18.5rem, 19rem) minmax(0, 1fr);
     gap: var(--space-3);
@@ -2415,7 +2414,7 @@ kbd {
   }
 }
 
-@media (max-width: 899px) {
+@media (max-width: 1179px) {
   .game-board {
     grid-template-columns: 1fr;
     align-items: start;
@@ -2541,11 +2540,6 @@ kbd {
   .voter-button {
     width: 1.7rem;
     max-width: none;
-  }
-
-  .players-heading-row,
-  .player-row {
-    min-width: 51.5rem;
   }
 
   .history-heading-row,

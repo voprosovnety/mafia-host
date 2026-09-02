@@ -10,10 +10,15 @@ import {
   compareGamesChronologically,
   filterGamesByInterval,
   getGameId,
+  MAX_FAULTS,
   parseExtraScore,
   recoverFirstKilledMarker,
   shuffledCopy,
 } from "../js/domain.js";
+
+test("three faults are tracked before player removal", () => {
+  assert.equal(MAX_FAULTS, 3);
+});
 
 function game({ date, time, players }) {
   return { date, time, players };

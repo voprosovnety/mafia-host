@@ -1,5 +1,5 @@
 export const PLAYER_COUNT = 10;
-export const MAX_FAULTS = 4;
+export const MAX_FAULTS = 3;
 export const MAX_TECHNICAL_FAULTS = 1;
 export const TECHNICAL_FAULT_PENALTY = -0.3;
 export const ROLE_OPTIONS = ["Мирный", "Шериф", "Мафия", "Дон"];

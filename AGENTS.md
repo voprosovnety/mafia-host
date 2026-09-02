@@ -45,7 +45,7 @@ Keep modules aligned with these responsibilities. Prefer pure functions in `js/d
 - There are always exactly 10 numbered player positions.
 - `Space` resets and starts the timer only on the `Игра` view and never while typing in an input, select, textarea, or editable element.
 - The reset timer button resets and stops the timer.
-- Each player has 0–4 faults; clicking a filled fault can reduce the count.
+- Each player has 0–3 tracked faults; the fourth fault means player removal and is not tracked yet. Clicking a filled fault can reduce the count.
 - Each player has 0–1 tracked technical faults. The first deducts 0.3 from the total score, and clicking the filled technical-fault control can clear it. A second technical fault means player removal; it must never be stored as a count of 2 or applied as another −0.3 penalty.
 - Voting starts at round 0 and can be reset to an empty round 0.
 - A player killed in night N can still vote in round N−1 and becomes ineligible starting with round N; players eliminated by voting cannot vote in later stages.
