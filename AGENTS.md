@@ -70,6 +70,7 @@ The HTTP server must bind to loopback by default. Keep the SQLite file inaccessi
 ## Git and delivery workflow
 
 - At the beginning of repository work, run `git fetch origin --prune` and inspect the current branch, upstream, and ahead/behind state. Fast-forward a clean branch when possible; never overwrite or discard local changes to force synchronization.
+- After every completed code-changing task, update local `docs/changes.md`: move the relevant item from `Запланировано` to `Выполнено` (or add it), with one short dated line. Keep this journal concise. It is intentionally ignored by Git and must stay local.
 - After every completed code-changing task, run the relevant local checks, commit all in-scope source and test changes, and push the current branch to `origin` unless the user explicitly says not to commit or push.
 - Never include `data/mafia-host.sqlite3`, SQLite WAL/SHM files, `.DS_Store`, caches, credentials, or unrelated user changes in a commit.
 - Use an `agent/<description>` feature branch when starting from `main` or from an already merged branch. Keep commits focused and use terse imperative commit subjects.
