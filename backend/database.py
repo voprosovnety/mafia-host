@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 ALLOWED_ROLES = {"Мирный", "Шериф", "Мафия", "Дон"}
-MAX_TECHNICAL_FAULTS = 2
+MAX_TECHNICAL_FAULTS = 1
 TECHNICAL_FAULT_PENALTY = -0.3
 SCHEMA_VERSION = 4
 
@@ -116,7 +116,7 @@ def normalize_game(value: object) -> dict:
             or not isinstance(technical_fouls, int)
             or not 0 <= technical_fouls <= MAX_TECHNICAL_FAULTS
         ):
-            raise ValidationError(f"У игрока {number} может быть от 0 до 2 техфолов")
+            raise ValidationError(f"У игрока {number} может быть только один техфол")
         if not isinstance(notes, str) or len(notes) > 10000:
             raise ValidationError(f"Некорректные заметки игрока {number}")
         technical_penalty = round(technical_fouls * TECHNICAL_FAULT_PENALTY, 2)

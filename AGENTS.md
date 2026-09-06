@@ -45,8 +45,8 @@ Keep modules aligned with these responsibilities. Prefer pure functions in `js/d
 - There are always exactly 10 numbered player positions.
 - `Space` resets and starts the timer only on the `Игра` view and never while typing in an input, select, textarea, or editable element.
 - The reset timer button resets and stops the timer.
-- Each player has 0–4 faults; clicking a filled fault can reduce the count.
-- Each player has 0–2 technical faults; every technical fault deducts 0.3 from the total score, and clicking a filled technical fault can reduce the count.
+- Each player has 0–3 tracked faults; the fourth fault means player removal and is not tracked yet. Clicking a filled fault can reduce the count.
+- Each player has 0–1 tracked technical faults. The first deducts 0.3 from the total score, and clicking the filled technical-fault control can clear it. A second technical fault means player removal; it must never be stored as a count of 2 or applied as another −0.3 penalty.
 - Voting starts at round 0 and can be reset to an empty round 0.
 - A player killed in night N can still vote in round N−1 and becomes ineligible starting with round N; players eliminated by voting cannot vote in later stages.
 - When a voting stage leads to a revote, only the final stage in that revote chain exposes and stores the outcome.
@@ -61,7 +61,7 @@ Keep modules aligned with these responsibilities. Prefer pure functions in `js/d
 
 ## Storage and safety
 
-Completed games live in SQLite schema version 4. Player scoring stores the base result, manual extra/penalty, technical-foul count, best-move (ЛХ), reserved CI score, and total separately. Saved games also store player notes and the three best-move picks. The unfinished current game still lives in browser `localStorage` so rapid input does not generate server traffic. Legacy browser games may be migrated from the current origin by `js/storage.js`. Old `file://` IndexedDB data belongs to a different browser origin and must be recovered through `legacy-recovery.html`; legacy CSV files are imported by `server.py`.
+Completed games live in SQLite schema version 4. Player scoring stores the base result, manual extra/penalty, technical-foul state (only 0 or 1), best-move (ЛХ), reserved CI score, and total separately. Saved games also store player notes and the three best-move picks. The unfinished current game still lives in browser `localStorage` so rapid input does not generate server traffic. Legacy browser games may be migrated from the current origin by `js/storage.js`. Old `file://` IndexedDB data belongs to a different browser origin and must be recovered through `legacy-recovery.html`; legacy CSV files are imported by `server.py`.
 
 Never delete, overwrite, commit, or recreate `data/mafia-host.sqlite3` during routine development or tests. Tests must use temporary databases. Before changing the SQLite schema, add an explicit migration keyed by `PRAGMA user_version` and test upgrading an existing database.
 
@@ -70,6 +70,7 @@ The HTTP server must bind to loopback by default. Keep the SQLite file inaccessi
 ## Git and delivery workflow
 
 - At the beginning of repository work, run `git fetch origin --prune` and inspect the current branch, upstream, and ahead/behind state. Fast-forward a clean branch when possible; never overwrite or discard local changes to force synchronization.
+- After every completed code-changing task, update local `docs/changes.md`: move the relevant item from `Запланировано` to `Выполнено` (or add it), with one short dated line. Keep this journal concise. It is intentionally ignored by Git and must stay local.
 - After every completed code-changing task, run the relevant local checks, commit all in-scope source and test changes, and push the current branch to `origin` unless the user explicitly says not to commit or push.
 - Never include `data/mafia-host.sqlite3`, SQLite WAL/SHM files, `.DS_Store`, caches, credentials, or unrelated user changes in a commit.
 - Use an `agent/<description>` feature branch when starting from `main` or from an already merged branch. Keep commits focused and use terse imperative commit subjects.

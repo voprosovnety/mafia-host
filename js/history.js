@@ -215,7 +215,6 @@ export class HistoryView {
     [...games].reverse().forEach((game) => {
       const details = document.createElement("details");
       details.className = "history-game";
-      details.open = true;
 
       const summary = document.createElement("summary");
       summary.className = "history-game-summary";

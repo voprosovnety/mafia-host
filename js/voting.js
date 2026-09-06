@@ -628,11 +628,18 @@ export class VotingController {
     const isRevote = this.currentRoundIndex !== nominationStageIndex;
     this.nominationButtons.forEach((button, playerNumber) => {
       const nominated = currentNominees.includes(playerNumber);
+      const playerRow = button.closest(".player-row");
+      playerRow?.classList.toggle("is-nominated", nominated);
       button.classList.toggle("is-nominated", nominated);
       button.disabled = false;
-      button.textContent = isRevote && nominated ? "В круге" : nominated ? "Снять" : "Выставить";
+      const actionLabel = nominated
+        ? `Снять игрока ${playerNumber} с голосования`
+        : `Выставить игрока ${playerNumber} на голосование`;
+      button.setAttribute("aria-label", actionLabel);
       button.setAttribute("aria-pressed", String(nominated));
-      button.title = isRevote ? "Изменение состава перестроит переголосование" : "";
+      button.title = isRevote
+        ? `${actionLabel}. Изменение состава перестроит переголосование`
+        : actionLabel;
     });
   }
 
