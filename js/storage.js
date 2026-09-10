@@ -5,7 +5,7 @@ const CURRENT_GAME_STORAGE_KEY = "mafia-host-current-game-v1";
 const LEGACY_DATABASE_NAME = "mafia-host";
 const LEGACY_DATABASE_VERSION = 1;
 const LEGACY_STORE_NAME = "games";
-const REQUIRED_API_VERSION = 1;
+const REQUIRED_API_VERSION = 2;
 
 function apiBase() {
   return window.location.protocol === "file:"
