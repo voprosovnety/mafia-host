@@ -2,21 +2,22 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  autoFillCivilianRoles,
   calculateBestMoveBonus,
   buildLeaderboard,
   buildGameSnapshot,
   calculateScores,
   calculateTechnicalFoulPenalty,
+  CIVILIAN_ROLE,
   compareGamesChronologically,
-  DEFAULT_ROLE,
   EXTRA_SCORE_OPTIONS,
   filterGamesByInterval,
   getGameId,
+  hasRequiredSpecialRoles,
   MAX_FAULTS,
   PENALTY_SCORE_OPTIONS,
   parseExtraScore,
   recoverFirstKilledMarker,
-  ROLE_OPTIONS,
   shuffledCopy,
 } from "../js/domain.js";
 
@@ -24,9 +25,19 @@ test("three faults are tracked before player removal", () => {
   assert.equal(MAX_FAULTS, 3);
 });
 
-test("civilian is the default player role", () => {
-  assert.equal(DEFAULT_ROLE, "Мирный");
-  assert.equal(ROLE_OPTIONS[0], DEFAULT_ROLE);
+test("remaining roles can be filled after all special roles are selected", () => {
+  assert.equal(CIVILIAN_ROLE, "Мирный");
+  assert.equal(hasRequiredSpecialRoles(["Мафия", "Мафия", "Дон", "Шериф"]), true);
+  assert.equal(hasRequiredSpecialRoles(["Мафия", "Дон", "Шериф"]), false);
+  assert.equal(hasRequiredSpecialRoles(["Мафия", "Мафия", "Мафия", "Дон", "Шериф"]), false);
+  assert.deepEqual(
+    autoFillCivilianRoles(["Мафия", "", "Дон", "", "Мафия", "Шериф"]),
+    ["Мафия", "Мирный", "Дон", "Мирный", "Мафия", "Шериф"],
+  );
+  assert.deepEqual(
+    autoFillCivilianRoles(["Мафия", "", "Дон", "", "Шериф"]),
+    ["Мафия", "", "Дон", "", "Шериф"],
+  );
 });
 
 function game({ date, time, players }) {

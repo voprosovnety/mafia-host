@@ -1,6 +1,7 @@
 import {
+  autoFillCivilianRoles,
   calculateScores,
-  DEFAULT_ROLE,
+  CIVILIAN_ROLE,
   EXTRA_SCORE_OPTIONS,
   formatScore,
   MAX_FAULTS,
@@ -121,6 +122,10 @@ export class PlayersController {
     const role = document.createElement("select");
     role.className = "player-role";
     role.setAttribute("aria-label", `Роль игрока ${playerNumber}`);
+    const emptyRole = document.createElement("option");
+    emptyRole.value = "";
+    emptyRole.textContent = "Роль";
+    role.append(emptyRole);
     ROLE_OPTIONS.forEach((roleName) => {
       const option = document.createElement("option");
       option.value = roleName;
@@ -128,6 +133,13 @@ export class PlayersController {
       role.append(option);
     });
     return role;
+  }
+
+  fillRemainingCivilianRoles() {
+    const roles = autoFillCivilianRoles(this.records.map((record) => record.role.value));
+    this.records.forEach((record, index) => {
+      record.role.value = roles[index];
+    });
   }
 
   createPlayerRow(playerNumber) {
@@ -256,7 +268,8 @@ export class PlayersController {
       this.onChange();
     });
     role.addEventListener("change", () => {
-      this.updatePlayerScore(record);
+      this.fillRemainingCivilianRoles();
+      this.records.forEach((playerRecord) => this.updatePlayerScore(playerRecord));
       this.onChange();
     });
     extra.addEventListener("change", () => {
@@ -342,7 +355,7 @@ export class PlayersController {
     this.bestMoveBonus = 0;
     this.setFirstKilled(null, false);
     this.records.forEach((record) => {
-      record.role.value = DEFAULT_ROLE;
+      record.role.value = "";
       record.extra.value = "";
       record.penalty.value = "";
       record.notes = "";
@@ -426,7 +439,7 @@ export class PlayersController {
       const stored = players[index];
       if (!stored || typeof stored !== "object") return;
       record.name.value = typeof stored.name === "string" ? stored.name : "";
-      record.role.value = ROLE_OPTIONS.includes(stored.role) ? stored.role : DEFAULT_ROLE;
+      record.role.value = ROLE_OPTIONS.includes(stored.role) ? stored.role : "";
       const legacyExtra = Number(stored.extra);
       const storedPenalty = stored.penalty === undefined && legacyExtra < 0
         ? Math.abs(legacyExtra)
@@ -451,6 +464,7 @@ export class PlayersController {
       );
       this.updatePlayerScore(record);
     });
+    this.fillRemainingCivilianRoles();
     this.setFirstKilled(null, false);
   }
 }

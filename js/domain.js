@@ -3,7 +3,7 @@ export const MAX_FAULTS = 3;
 export const MAX_TECHNICAL_FAULTS = 1;
 export const TECHNICAL_FAULT_PENALTY = -0.3;
 export const ROLE_OPTIONS = ["Мирный", "Шериф", "Мафия", "Дон"];
-export const DEFAULT_ROLE = "Мирный";
+export const CIVILIAN_ROLE = "Мирный";
 export const EXTRA_SCORE_OPTIONS = [0.2, 0.4, 0.6, 0.8, 1, 1.2];
 export const PENALTY_SCORE_OPTIONS = [0.2, 0.4, 0.6, 0.8, 1, 1.5];
 
@@ -32,6 +32,18 @@ export function getRoleTeam(role) {
   }
 
   return null;
+}
+
+export function hasRequiredSpecialRoles(roles) {
+  const roleList = Array.isArray(roles) ? roles : [];
+  const count = (roleName) => roleList.filter((role) => role === roleName).length;
+  return count("Мафия") === 2 && count("Дон") === 1 && count("Шериф") === 1;
+}
+
+export function autoFillCivilianRoles(roles) {
+  const roleList = Array.isArray(roles) ? [...roles] : [];
+  if (!hasRequiredSpecialRoles(roleList)) return roleList;
+  return roleList.map((role) => role || CIVILIAN_ROLE);
 }
 
 export function calculateBestMoveBonus(bestMoveNumbers, players) {
