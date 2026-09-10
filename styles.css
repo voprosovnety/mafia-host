@@ -1120,7 +1120,12 @@ kbd {
 
 .extra-score,
 .penalty-score {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-inline: 0.2rem;
+  background-image: none;
   cursor: pointer;
+  text-align-last: center;
 }
 
 .player-role[data-role="Мирный"] {
@@ -2056,6 +2061,16 @@ kbd {
 .edit-game-total {
   font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   text-align: center;
+}
+
+.edit-game-extra,
+.edit-game-penalty {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-inline: 0.2rem;
+  background-image: none;
+  cursor: pointer;
+  text-align-last: center;
 }
 
 .edit-game-score-fields {
