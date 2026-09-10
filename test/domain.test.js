@@ -8,6 +8,7 @@ import {
   calculateScores,
   calculateTechnicalFoulPenalty,
   compareGamesChronologically,
+  DEFAULT_ROLE,
   EXTRA_SCORE_OPTIONS,
   filterGamesByInterval,
   getGameId,
@@ -15,11 +16,17 @@ import {
   PENALTY_SCORE_OPTIONS,
   parseExtraScore,
   recoverFirstKilledMarker,
+  ROLE_OPTIONS,
   shuffledCopy,
 } from "../js/domain.js";
 
 test("three faults are tracked before player removal", () => {
   assert.equal(MAX_FAULTS, 3);
+});
+
+test("civilian is the default player role", () => {
+  assert.equal(DEFAULT_ROLE, "Мирный");
+  assert.equal(ROLE_OPTIONS[0], DEFAULT_ROLE);
 });
 
 function game({ date, time, players }) {

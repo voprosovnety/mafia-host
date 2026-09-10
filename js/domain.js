@@ -3,6 +3,7 @@ export const MAX_FAULTS = 3;
 export const MAX_TECHNICAL_FAULTS = 1;
 export const TECHNICAL_FAULT_PENALTY = -0.3;
 export const ROLE_OPTIONS = ["Мирный", "Шериф", "Мафия", "Дон"];
+export const DEFAULT_ROLE = "Мирный";
 export const EXTRA_SCORE_OPTIONS = [0.2, 0.4, 0.6, 0.8, 1, 1.2];
 export const PENALTY_SCORE_OPTIONS = [0.2, 0.4, 0.6, 0.8, 1, 1.5];
 
