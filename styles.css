@@ -1877,7 +1877,7 @@ kbd {
 
 .leaderboard-table th {
   position: sticky;
-  top: var(--header-height);
+  top: 0;
   z-index: 2;
   background: var(--panel);
   color: var(--muted);
