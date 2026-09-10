@@ -72,6 +72,18 @@ class GamesDatabaseTest(unittest.TestCase):
         with self.assertRaises(ValidationError):
             self.database.add_game(invalid)
 
+    def test_losing_player_with_penalty_has_negative_total(self):
+        game = sample_game("mf-loss-with-penalty")
+        losing_player = game["players"][7]
+        losing_player["penalty"] = 0.4
+        losing_player["total"] = -0.4
+
+        stored = self.database.add_game(game)
+
+        self.assertEqual(stored["players"][7]["base"], 0)
+        self.assertEqual(stored["players"][7]["penalty"], 0.4)
+        self.assertEqual(stored["players"][7]["total"], -0.4)
+
     def test_impossible_date_is_rejected(self):
         invalid = sample_game()
         invalid["date"] = "31.02.2026"

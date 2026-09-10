@@ -29,6 +29,7 @@ const storageIndicator = document.querySelector("#storage-indicator");
 const saveGameButton = document.querySelector("#save-game");
 const newGameButton = document.querySelector("#new-game");
 const winnerButtons = document.querySelectorAll(".winner-button");
+saveGameButton.disabled = true;
 
 function setStatus(element, message, isError = false) {
   element.textContent = message;
@@ -268,6 +269,7 @@ try {
   refreshSavedViews();
   storageIndicator.classList.add("is-online");
   storageIndicator.title = "SQLite подключена";
+  saveGameButton.disabled = false;
   if (recoveredFirstKilled) {
     setStatus(historyStatus, "ПУ восстановлен из текущей игры");
   }
