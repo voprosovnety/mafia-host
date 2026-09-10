@@ -361,8 +361,30 @@ export function playersCountLabel(count) {
   return `${count} игроков`;
 }
 
-function normalizeLeaderboardName(name) {
+export function normalizeNickname(name) {
   return String(name).trim().replace(/\s+/g, " ").toLocaleLowerCase("ru-RU");
+}
+
+export function buildNicknameSuggestions(games) {
+  const suggestions = new Map();
+
+  games.forEach((game) => {
+    game.players.forEach((player) => {
+      const name = String(player.name).trim().replace(/\s+/g, " ");
+      const key = normalizeNickname(name);
+      if (key && !suggestions.has(key)) suggestions.set(key, name);
+    });
+  });
+
+  return [...suggestions.values()].sort((first, second) => (
+    first.localeCompare(second, "ru", { sensitivity: "base" })
+  ));
+}
+
+export function filterNicknameSuggestions(suggestions, query) {
+  const normalizedQuery = normalizeNickname(query);
+  if (!normalizedQuery) return [];
+  return suggestions.filter((name) => normalizeNickname(name).startsWith(normalizedQuery));
 }
 
 export function buildLeaderboard(games) {
@@ -371,7 +393,7 @@ export function buildLeaderboard(games) {
   games.forEach((game) => {
     game.players.forEach((player) => {
       const name = String(player.name).trim();
-      const key = normalizeLeaderboardName(name);
+      const key = normalizeNickname(name);
       if (!key) return;
 
       if (!players.has(key)) {

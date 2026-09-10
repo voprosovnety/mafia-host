@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   autoFillCivilianRoles,
+  buildNicknameSuggestions,
   calculateBestMoveBonus,
   buildLeaderboard,
   buildGameSnapshot,
@@ -11,6 +12,7 @@ import {
   CIVILIAN_ROLE,
   compareGamesChronologically,
   EXTRA_SCORE_OPTIONS,
+  filterNicknameSuggestions,
   filterGamesByInterval,
   getGameId,
   hasRequiredSpecialRoles,
@@ -194,6 +196,31 @@ test("leaderboard combines bonuses and penalties by normalized nickname", () => 
     gamesPlayed: 2,
     average: 0.95,
   });
+});
+
+test("nickname suggestions use unique names from saved games", () => {
+  const games = [
+    game({ date: "01.08.2026", time: "10:00:00", players: [
+      { name: "  Шляпа  " },
+      { name: "Crystal" },
+    ] }),
+    game({ date: "02.08.2026", time: "10:00:00", players: [
+      { name: "шляпа" },
+      { name: "  Crazy   Cat " },
+    ] }),
+  ];
+
+  assert.deepEqual(
+    buildNicknameSuggestions(games),
+    ["Шляпа", "Crazy Cat", "Crystal"],
+  );
+});
+
+test("nickname suggestions match the beginning without case sensitivity", () => {
+  const suggestions = ["Crazy Cat", "Crystal", "Secret Crystal"];
+  assert.deepEqual(filterNicknameSuggestions(suggestions, "cr"), ["Crazy Cat", "Crystal"]);
+  assert.deepEqual(filterNicknameSuggestions(suggestions, "  CRa  "), ["Crazy Cat"]);
+  assert.deepEqual(filterNicknameSuggestions(suggestions, ""), []);
 });
 
 test("date-time interval is inclusive and detects reversed bounds", () => {

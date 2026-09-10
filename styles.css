@@ -1071,6 +1071,10 @@ kbd {
   color: var(--text);
 }
 
+.player-name-field {
+  min-width: 0;
+}
+
 .player-name {
   width: 100%;
   min-width: 0;
@@ -1096,6 +1100,43 @@ kbd {
 .player-name:focus-visible {
   border-color: var(--accent);
   background: var(--panel-raised);
+}
+
+.nickname-suggestions {
+  position: fixed;
+  z-index: 40;
+  margin: 0;
+  padding: 0.18rem 0;
+  overflow-y: auto;
+  border: 1px solid var(--accent);
+  background: #111416;
+  box-shadow: 0 0.65rem 1.4rem rgb(0 0 0 / 55%);
+  list-style: none;
+}
+
+.nickname-suggestions[hidden] {
+  display: none;
+}
+
+.nickname-suggestion {
+  min-height: 2.15rem;
+  display: flex;
+  align-items: center;
+  padding: 0.4rem 0.6rem;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 0.92rem;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.nickname-suggestion[aria-selected="true"],
+.nickname-suggestion:hover {
+  background: var(--accent-soft);
+  box-shadow: inset 3px 0 0 var(--accent);
+  color: var(--accent);
 }
 
 .player-role,
