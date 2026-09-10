@@ -3,6 +3,9 @@ export const MAX_FAULTS = 3;
 export const MAX_TECHNICAL_FAULTS = 1;
 export const TECHNICAL_FAULT_PENALTY = -0.3;
 export const ROLE_OPTIONS = ["Мирный", "Шериф", "Мафия", "Дон"];
+export const CIVILIAN_ROLE = "Мирный";
+export const EXTRA_SCORE_OPTIONS = [0.2, 0.4, 0.6, 0.8, 1, 1.2];
+export const PENALTY_SCORE_OPTIONS = [0.2, 0.4, 0.6, 0.8, 1, 1.5];
 
 export function shuffledCopy(items, random = Math.random) {
   const shuffled = [...items];
@@ -29,6 +32,18 @@ export function getRoleTeam(role) {
   }
 
   return null;
+}
+
+export function hasRequiredSpecialRoles(roles) {
+  const roleList = Array.isArray(roles) ? roles : [];
+  const count = (roleName) => roleList.filter((role) => role === roleName).length;
+  return count("Мафия") === 2 && count("Дон") === 1 && count("Шериф") === 1;
+}
+
+export function autoFillCivilianRoles(roles) {
+  const roleList = Array.isArray(roles) ? [...roles] : [];
+  if (!hasRequiredSpecialRoles(roleList)) return roleList;
+  return roleList.map((role) => role || CIVILIAN_ROLE);
 }
 
 export function calculateBestMoveBonus(bestMoveNumbers, players) {
@@ -63,6 +78,20 @@ export function parseExtraScore(value) {
   return Number.isFinite(score) ? score : null;
 }
 
+export function normalizeManualScores(extraValue, penaltyValue) {
+  let extra = parseExtraScore(extraValue ?? "");
+  let penalty = parseExtraScore(penaltyValue ?? "");
+
+  if (penaltyValue === undefined && extra !== null && extra < 0) {
+    penalty = Math.abs(extra);
+    extra = 0;
+  }
+  if (extra === null || penalty === null || extra < 0 || penalty < 0) {
+    return { extra: null, penalty: null };
+  }
+  return { extra: roundScore(extra), penalty: roundScore(penalty) };
+}
+
 export function roundScore(score) {
   const rounded = Math.round((score + Number.EPSILON) * 100) / 100;
   return Object.is(rounded, -0) ? 0 : rounded;
@@ -85,6 +114,7 @@ export function calculateTechnicalFoulPenalty(technicalFouls) {
 export function calculateScores(
   role,
   extraValue,
+  penaltyValue,
   winner,
   lhValue = 0,
   ciValue = 0,
@@ -92,15 +122,15 @@ export function calculateScores(
 ) {
   const team = getRoleTeam(role);
   const base = winner && team ? Number(winner === team) : null;
-  const extra = parseExtraScore(extraValue);
+  const { extra, penalty } = normalizeManualScores(extraValue, penaltyValue);
   const lh = Number.isFinite(Number(lhValue)) ? roundScore(Number(lhValue)) : 0;
   const ci = Number.isFinite(Number(ciValue)) ? roundScore(Number(ciValue)) : 0;
   const technicalFouls = normalizeTechnicalFouls(technicalFoulsValue);
   const technicalPenalty = calculateTechnicalFoulPenalty(technicalFouls);
-  const total = base === null || extra === null
+  const total = base === null || extra === null || penalty === null
     ? null
-    : roundScore(base + extra + lh + ci + technicalPenalty);
-  return { team, base, extra, lh, ci, technicalFouls, technicalPenalty, total };
+    : roundScore(base + extra - penalty + lh + ci + technicalPenalty);
+  return { team, base, extra, penalty, lh, ci, technicalFouls, technicalPenalty, total };
 }
 
 export function winnerLabel(winner) {
@@ -137,6 +167,7 @@ export function buildGameSnapshot(
       const scores = calculateScores(
         player.role,
         player.extra,
+        player.penalty,
         winner,
         bestMoveBonus,
         0,
@@ -148,6 +179,7 @@ export function buildGameSnapshot(
         role: player.role.trim(),
         base: scores.base,
         extra: scores.extra,
+        penalty: scores.penalty,
         lh: scores.lh,
         ci: scores.ci,
         technicalFouls: scores.technicalFouls,
@@ -175,10 +207,13 @@ export function validateGame(players, winner) {
   }
 
   const invalidExtras = players
-    .filter((player) => parseExtraScore(player.extra) === null)
+    .filter((player) => {
+      const scores = normalizeManualScores(player.extra, player.penalty);
+      return scores.extra === null || scores.penalty === null;
+    })
     .map((player) => player.number);
   if (invalidExtras.length > 0) {
-    return `Проверьте доп. балл игроков: ${invalidExtras.join(", ")}`;
+    return `Проверьте допы и штрафы игроков: ${invalidExtras.join(", ")}`;
   }
 
   return null;
@@ -194,7 +229,8 @@ export function isStoredGame(value) {
 function gameContentFingerprint(game) {
   const players = game.players
     .map((player) => {
-      const common = `${player.number}:${player.name}:${player.role}:${player.base}:${player.extra}:${player.total}`;
+      const penalty = Number(player.penalty) || 0;
+      const common = `${player.number}:${player.name}:${player.role}:${player.base}:${player.extra}:${penalty}:${player.total}`;
       const lh = Number(player.lh) || 0;
       const ci = Number(player.ci) || 0;
       const technicalFouls = normalizeTechnicalFouls(player.technicalFouls);
@@ -350,16 +386,22 @@ export function buildLeaderboard(games) {
       }
 
       const stats = players.get(key);
-      const extra = Number(player.extra);
+      let extra = Number(player.extra);
+      let penalty = Number(player.penalty);
+      if (player.penalty === undefined && Number.isFinite(extra) && extra < 0) {
+        penalty = Math.abs(extra);
+        extra = 0;
+      }
       const technicalPenalty = calculateTechnicalFoulPenalty(player.technicalFouls);
       const total = Number(player.total);
       const safeExtra = Number.isFinite(extra) ? extra : 0;
+      const safePenalty = Number.isFinite(penalty) ? penalty : 0;
       const safeTotal = Number.isFinite(total) ? total : 0;
       stats.totalScore += safeTotal;
-      stats.netExtra += safeExtra;
+      stats.netExtra += safeExtra - safePenalty;
       stats.netExtra += technicalPenalty;
-      stats.bonuses += Math.max(0, safeExtra);
-      stats.penalties += Math.min(0, safeExtra);
+      stats.bonuses += safeExtra;
+      stats.penalties -= safePenalty;
       stats.penalties += technicalPenalty;
       stats.gamesPlayed += 1;
     });

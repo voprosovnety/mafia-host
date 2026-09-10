@@ -2,15 +2,20 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  autoFillCivilianRoles,
   calculateBestMoveBonus,
   buildLeaderboard,
   buildGameSnapshot,
   calculateScores,
   calculateTechnicalFoulPenalty,
+  CIVILIAN_ROLE,
   compareGamesChronologically,
+  EXTRA_SCORE_OPTIONS,
   filterGamesByInterval,
   getGameId,
+  hasRequiredSpecialRoles,
   MAX_FAULTS,
+  PENALTY_SCORE_OPTIONS,
   parseExtraScore,
   recoverFirstKilledMarker,
   shuffledCopy,
@@ -18,6 +23,21 @@ import {
 
 test("three faults are tracked before player removal", () => {
   assert.equal(MAX_FAULTS, 3);
+});
+
+test("remaining roles can be filled after all special roles are selected", () => {
+  assert.equal(CIVILIAN_ROLE, "Мирный");
+  assert.equal(hasRequiredSpecialRoles(["Мафия", "Мафия", "Дон", "Шериф"]), true);
+  assert.equal(hasRequiredSpecialRoles(["Мафия", "Дон", "Шериф"]), false);
+  assert.equal(hasRequiredSpecialRoles(["Мафия", "Мафия", "Мафия", "Дон", "Шериф"]), false);
+  assert.deepEqual(
+    autoFillCivilianRoles(["Мафия", "", "Дон", "", "Мафия", "Шериф"]),
+    ["Мафия", "Мирный", "Дон", "Мирный", "Мафия", "Шериф"],
+  );
+  assert.deepEqual(
+    autoFillCivilianRoles(["Мафия", "", "Дон", "", "Шериф"]),
+    ["Мафия", "", "Дон", "", "Шериф"],
+  );
 });
 
 function game({ date, time, players }) {
@@ -31,6 +51,11 @@ test("additional scores accept commas, negatives and empty values", () => {
   assert.equal(parseExtraScore("abc"), null);
 });
 
+test("manual score selectors expose the required values in order", () => {
+  assert.deepEqual(EXTRA_SCORE_OPTIONS, [0.2, 0.4, 0.6, 0.8, 1, 1.2]);
+  assert.deepEqual(PENALTY_SCORE_OPTIONS, [0.2, 0.4, 0.6, 0.8, 1, 1.5]);
+});
+
 test("random seating shuffles a copy without losing players", () => {
   const players = ["А", "Б", "В", "Г"];
   const randomValues = [0.2, 0.8, 0.1];
@@ -40,12 +65,12 @@ test("random seating shuffles a copy without losing players", () => {
 });
 
 test("base score follows the role team and winner", () => {
-  assert.deepEqual(calculateScores("Мирный", "0.6", "red"), {
-    team: "red", base: 1, extra: 0.6, lh: 0, ci: 0,
+  assert.deepEqual(calculateScores("Мирный", "0.6", "", "red"), {
+    team: "red", base: 1, extra: 0.6, penalty: 0, lh: 0, ci: 0,
     technicalFouls: 0, technicalPenalty: 0, total: 1.6,
   });
-  assert.deepEqual(calculateScores("Дон", "-0.4", "red"), {
-    team: "black", base: 0, extra: -0.4, lh: 0, ci: 0,
+  assert.deepEqual(calculateScores("Дон", "", "0.4", "red"), {
+    team: "black", base: 0, extra: 0, penalty: 0.4, lh: 0, ci: 0,
     technicalFouls: 0, technicalPenalty: 0, total: -0.4,
   });
 });
@@ -71,17 +96,18 @@ test("best move awards 0.5 for two black roles and 0.8 for three", () => {
   assert.equal(calculateBestMoveBonus([2, 3, 4], null), 0);
 });
 
-test("manual extra, technical foul, best move and CI are separate score components", () => {
-  assert.deepEqual(calculateScores("Мирный", "0.2", "red", 0.5, 0.3, 2), {
-    team: "red", base: 1, extra: 0.2, lh: 0.5, ci: 0.3,
-    technicalFouls: 1, technicalPenalty: -0.3, total: 1.7,
+test("manual extra, penalty, technical foul, best move and CI are separate score components", () => {
+  assert.deepEqual(calculateScores("Мирный", "0.2", "0.4", "red", 0.5, 0.3, 2), {
+    team: "red", base: 1, extra: 0.2, penalty: 0.4, lh: 0.5, ci: 0.3,
+    technicalFouls: 1, technicalPenalty: -0.3, total: 1.3,
   });
   const snapshot = buildGameSnapshot([
     {
       number: 1,
       name: "ПУ",
       role: "Мирный",
-      extra: "-0.2",
+      extra: "0.2",
+      penalty: "0.4",
       isFirstKilled: true,
       bestMoveBonus: 0.8,
       technicalFouls: 1,
@@ -91,7 +117,8 @@ test("manual extra, technical foul, best move and CI are separate score componen
     now: new Date("2026-08-17T12:00:00Z"),
     bestMove: [2, 8, 10],
   });
-  assert.equal(snapshot.players[0].extra, -0.2);
+  assert.equal(snapshot.players[0].extra, 0.2);
+  assert.equal(snapshot.players[0].penalty, 0.4);
   assert.equal(snapshot.players[0].lh, 0.8);
   assert.equal(snapshot.players[0].ci, 0);
   assert.equal(snapshot.players[0].technicalFouls, 1);
@@ -133,6 +160,10 @@ test("stable game id ignores metadata but changes with results", () => {
   }));
   assert.notEqual(getGameId(baseGame), getGameId({
     ...baseGame,
+    players: [{ ...baseGame.players[0], penalty: 0.2, total: 0.8 }],
+  }));
+  assert.notEqual(getGameId(baseGame), getGameId({
+    ...baseGame,
     players: [{ ...baseGame.players[0], technicalFouls: 1, total: 0.7 }],
   }));
   assert.notEqual(getGameId(baseGame), getGameId({
@@ -151,7 +182,7 @@ test("leaderboard combines bonuses and penalties by normalized nickname", () => 
       { name: "Шляпа", extra: 0.6, total: 1.6 },
     ] }),
     game({ date: "02.08.2026", time: "10:00:00", players: [
-      { name: "  шляпа ", extra: -0.4, technicalFouls: 1, total: 0.3 },
+      { name: "  шляпа ", extra: 0, penalty: 0.4, technicalFouls: 1, total: 0.3 },
     ] }),
   ];
   assert.deepEqual(buildLeaderboard(games)[0], {

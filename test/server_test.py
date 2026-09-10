@@ -17,10 +17,11 @@ def sample_game(game_id="mf-test-game"):
             "role": role,
             "base": base,
             "extra": 0,
+            "penalty": 0.2 if index == 1 else 0,
             "lh": 0.5 if index == 1 else 0,
             "ci": 0.25 if index == 1 else 0,
             "technicalFouls": 1 if index == 1 else 0,
-            "total": base + (0.45 if index == 1 else 0),
+            "total": base + (0.25 if index == 1 else 0),
             "notes": "Заметка ПУ" if index == 1 else "",
             "isFirstKilled": index == 1,
         })
@@ -51,6 +52,7 @@ class GamesDatabaseTest(unittest.TestCase):
         self.assertTrue(stored_player["isFirstKilled"])
         self.assertEqual(stored_player["lh"], 0.5)
         self.assertEqual(stored_player["ci"], 0.25)
+        self.assertEqual(stored_player["penalty"], 0.2)
         self.assertEqual(stored_player["technicalFouls"], 1)
         self.assertEqual(stored_player["notes"], "Заметка ПУ")
         self.assertEqual(self.database.list_games()[0]["bestMove"], [8, 9, 10])
@@ -87,7 +89,7 @@ class GamesDatabaseTest(unittest.TestCase):
     def test_schema_version_is_recorded(self):
         with self.database.connect() as connection:
             version = connection.execute("PRAGMA user_version").fetchone()[0]
-        self.assertEqual(version, 4)
+        self.assertEqual(version, 5)
 
     def test_schema_version_one_is_migrated_without_losing_players(self):
         legacy_path = Path(self.temp_dir.name) / "legacy.sqlite3"
@@ -128,16 +130,16 @@ class GamesDatabaseTest(unittest.TestCase):
             first_killed = connection.execute(
                 "SELECT is_first_killed FROM players WHERE game_id = 'mf-legacy'"
             ).fetchone()[0]
-        self.assertEqual(version, 4)
+        self.assertEqual(version, 5)
         self.assertEqual(first_killed, 0)
         with migrated.connect() as connection:
             breakdown = connection.execute(
                 """
-                SELECT lh_score, ci_score, technical_fouls, notes, total_score
+                SELECT lh_score, ci_score, technical_fouls, notes, penalty_score, total_score
                 FROM players WHERE game_id = 'mf-legacy'
                 """
             ).fetchone()
-        self.assertEqual(tuple(breakdown), (0, 0, 0, "", 1))
+        self.assertEqual(tuple(breakdown), (0, 0, 0, "", 0, 1))
 
     def test_schema_version_two_adds_score_components_without_changing_total(self):
         legacy_path = Path(self.temp_dir.name) / "schema-two.sqlite3"
@@ -183,7 +185,7 @@ class GamesDatabaseTest(unittest.TestCase):
                 FROM players WHERE game_id = 'mf-v2'
                 """
             ).fetchone()
-        self.assertEqual(version, 4)
+        self.assertEqual(version, 5)
         self.assertEqual(tuple(player), (0.5, 0, 0, 1.5))
 
     def test_schema_version_three_adds_technical_fouls_notes_and_best_move(self):
@@ -231,7 +233,59 @@ class GamesDatabaseTest(unittest.TestCase):
         self.assertEqual(game["players"][0]["total"], 1.7)
         with migrated.connect() as connection:
             version = connection.execute("PRAGMA user_version").fetchone()[0]
-        self.assertEqual(version, 4)
+        self.assertEqual(version, 5)
+
+    def test_schema_version_four_separates_legacy_negative_extra_as_penalty(self):
+        legacy_path = Path(self.temp_dir.name) / "schema-four.sqlite3"
+        with sqlite3.connect(legacy_path) as connection:
+            connection.executescript(
+                """
+                CREATE TABLE games (
+                    game_id TEXT PRIMARY KEY,
+                    record_id TEXT NOT NULL,
+                    game_date TEXT NOT NULL,
+                    game_time TEXT NOT NULL,
+                    winner TEXT NOT NULL,
+                    best_move_1 INTEGER,
+                    best_move_2 INTEGER,
+                    best_move_3 INTEGER
+                );
+                CREATE TABLE players (
+                    game_id TEXT NOT NULL REFERENCES games(game_id) ON DELETE CASCADE,
+                    player_number INTEGER NOT NULL,
+                    nickname TEXT NOT NULL,
+                    role TEXT NOT NULL,
+                    base_score REAL NOT NULL,
+                    extra_score REAL NOT NULL,
+                    lh_score REAL NOT NULL DEFAULT 0,
+                    ci_score REAL NOT NULL DEFAULT 0,
+                    technical_fouls INTEGER NOT NULL DEFAULT 0,
+                    total_score REAL NOT NULL,
+                    notes TEXT NOT NULL DEFAULT '',
+                    is_first_killed INTEGER NOT NULL DEFAULT 0,
+                    PRIMARY KEY (game_id, player_number)
+                );
+                INSERT INTO games (
+                    game_id, record_id, game_date, game_time, winner
+                ) VALUES (
+                    'mf-v4', '2026-08-13T00:00:00Z', '13.08.2026', '07:00:00', 'red'
+                );
+                INSERT INTO players (
+                    game_id, player_number, nickname, role, base_score, extra_score,
+                    total_score
+                ) VALUES ('mf-v4', 1, 'Игрок 1', 'Мирный', 1, -0.4, 0.6);
+                PRAGMA user_version = 4;
+                """
+            )
+
+        migrated = GamesDatabase(legacy_path)
+        player = migrated.list_games()[0]["players"][0]
+        self.assertEqual(player["extra"], 0)
+        self.assertEqual(player["penalty"], 0.4)
+        self.assertEqual(player["total"], 0.6)
+        with migrated.connect() as connection:
+            version = connection.execute("PRAGMA user_version").fetchone()[0]
+        self.assertEqual(version, 5)
 
     def test_only_one_first_killed_player_is_allowed(self):
         invalid = sample_game()
@@ -247,6 +301,7 @@ class GamesDatabaseTest(unittest.TestCase):
             player.pop("ci")
             player.pop("technicalFouls")
             player.pop("notes")
+            player.pop("penalty")
             player["total"] = player["base"] + player["extra"]
         legacy.pop("bestMove")
         self.database.add_game(legacy)

@@ -1,13 +1,44 @@
 import {
+  autoFillCivilianRoles,
   calculateScores,
+  CIVILIAN_ROLE,
+  EXTRA_SCORE_OPTIONS,
   formatScore,
   MAX_FAULTS,
   MAX_TECHNICAL_FAULTS,
   normalizeTechnicalFouls,
   PLAYER_COUNT,
+  PENALTY_SCORE_OPTIONS,
   ROLE_OPTIONS,
   shuffledCopy,
 } from "./domain.js";
+
+function createScoreSelect(playerNumber, className, label, values) {
+  const select = document.createElement("select");
+  select.className = className;
+  select.setAttribute("aria-label", `${label} игрока ${playerNumber}`);
+  const empty = document.createElement("option");
+  empty.value = "";
+  empty.textContent = "—";
+  select.append(empty);
+  values.forEach((value) => {
+    const option = document.createElement("option");
+    option.value = String(value);
+    option.textContent = String(value);
+    select.append(option);
+  });
+  return select;
+}
+
+function restoreScoreSelect(select, value) {
+  const numericValue = Number(value);
+  const normalized = Number.isFinite(numericValue) && numericValue > 0
+    ? String(Math.abs(numericValue))
+    : "";
+  select.value = [...select.options].some((option) => option.value === normalized)
+    ? normalized
+    : "";
+}
 
 function createNominationIcon() {
   const svgNamespace = "http://www.w3.org/2000/svg";
@@ -104,6 +135,13 @@ export class PlayersController {
     return role;
   }
 
+  fillRemainingCivilianRoles() {
+    const roles = autoFillCivilianRoles(this.records.map((record) => record.role.value));
+    this.records.forEach((record, index) => {
+      record.role.value = roles[index];
+    });
+  }
+
   createPlayerRow(playerNumber) {
     const row = document.createElement("li");
     row.className = "player-row";
@@ -152,13 +190,18 @@ export class PlayersController {
     base.textContent = "—";
     base.setAttribute("aria-label", `Балл игрока ${playerNumber}`);
 
-    const extra = document.createElement("input");
-    extra.className = "extra-score";
-    extra.type = "text";
-    extra.inputMode = "decimal";
-    extra.maxLength = 4;
-    extra.placeholder = "0";
-    extra.setAttribute("aria-label", `Дополнительный балл игрока ${playerNumber}`);
+    const extra = createScoreSelect(
+      playerNumber,
+      "extra-score",
+      "Дополнительный балл",
+      EXTRA_SCORE_OPTIONS,
+    );
+    const penalty = createScoreSelect(
+      playerNumber,
+      "penalty-score",
+      "Штраф",
+      PENALTY_SCORE_OPTIONS,
+    );
 
     const total = document.createElement("output");
     total.className = "total-score";
@@ -182,6 +225,7 @@ export class PlayersController {
       firstKilledBadge,
       base,
       extra,
+      penalty,
       total,
       notesButton,
       notes: "",
@@ -224,10 +268,15 @@ export class PlayersController {
       this.onChange();
     });
     role.addEventListener("change", () => {
+      this.fillRemainingCivilianRoles();
+      this.records.forEach((playerRecord) => this.updatePlayerScore(playerRecord));
+      this.onChange();
+    });
+    extra.addEventListener("change", () => {
       this.updatePlayerScore(record);
       this.onChange();
     });
-    extra.addEventListener("input", () => {
+    penalty.addEventListener("change", () => {
       this.updatePlayerScore(record);
       this.onChange();
     });
@@ -235,7 +284,19 @@ export class PlayersController {
     notesButton.addEventListener("click", () => this.openNotes(record));
 
     this.records.push(record);
-    row.append(number, name, role, faults, technicalFaults, nominate, base, extra, total, notesButton);
+    row.append(
+      number,
+      name,
+      role,
+      faults,
+      technicalFaults,
+      nominate,
+      base,
+      extra,
+      penalty,
+      total,
+      notesButton,
+    );
     this.setFaultCount(record, 0);
     this.setTechnicalFaultCount(record, 0);
     this.updatePlayerScore(record);
@@ -248,21 +309,20 @@ export class PlayersController {
     const scores = calculateScores(
       record.role.value,
       record.extra.value,
+      record.penalty.value,
       this.winner,
       lh,
       0,
       technicalFouls,
     );
     record.role.dataset.role = record.role.value;
-    record.extra.classList.toggle("is-invalid", scores.extra === null);
     record.base.textContent = formatScore(scores.base);
     record.total.textContent = formatScore(scores.total);
     record.base.classList.toggle("has-value", scores.base !== null);
     record.base.classList.toggle("is-winner", scores.base === 1);
     record.total.classList.toggle("has-value", scores.total !== null);
-    record.extra.title = lh > 0
-      ? `Ручной доп.; бонус ЛХ +${lh}`
-      : "Ручной дополнительный балл";
+    record.extra.title = lh > 0 ? `Допы; бонус ЛХ +${lh}` : "Допы";
+    record.penalty.title = "Штрафы";
   }
 
   setWinner(winner) {
@@ -297,6 +357,7 @@ export class PlayersController {
     this.records.forEach((record) => {
       record.role.value = "";
       record.extra.value = "";
+      record.penalty.value = "";
       record.notes = "";
       record.notesButton.classList.remove("has-notes");
       record.notesButton.setAttribute("aria-label", `Открыть заметки игрока ${record.number}`);
@@ -365,6 +426,7 @@ export class PlayersController {
       faults: Number(record.row.dataset.faults),
       technicalFouls: Number(record.row.dataset.technicalFaults),
       extra: record.extra.value,
+      penalty: record.penalty.value,
       notes: record.notes,
       isFirstKilled: record.isFirstKilled,
       bestMoveBonus: record.isFirstKilled ? this.bestMoveBonus : 0,
@@ -378,7 +440,12 @@ export class PlayersController {
       if (!stored || typeof stored !== "object") return;
       record.name.value = typeof stored.name === "string" ? stored.name : "";
       record.role.value = ROLE_OPTIONS.includes(stored.role) ? stored.role : "";
-      record.extra.value = typeof stored.extra === "string" ? stored.extra.slice(0, 4) : "";
+      const legacyExtra = Number(stored.extra);
+      const storedPenalty = stored.penalty === undefined && legacyExtra < 0
+        ? Math.abs(legacyExtra)
+        : stored.penalty;
+      restoreScoreSelect(record.extra, legacyExtra > 0 ? legacyExtra : 0);
+      restoreScoreSelect(record.penalty, storedPenalty);
       record.notes = typeof stored.notes === "string" ? stored.notes : "";
       const hasNotes = record.notes.trim() !== "";
       record.notesButton.classList.toggle("has-notes", hasNotes);
@@ -397,6 +464,7 @@ export class PlayersController {
       );
       this.updatePlayerScore(record);
     });
+    this.fillRemainingCivilianRoles();
     this.setFirstKilled(null, false);
   }
 }
