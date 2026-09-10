@@ -1,4 +1,5 @@
 import {
+  buildNicknameSuggestions,
   calculateBestMoveBonus,
   buildGameSnapshot,
   compareGamesChronologically,
@@ -123,6 +124,7 @@ function refreshSavedViews() {
   savedGames.sort(compareGamesChronologically);
   history.render(savedGames);
   leaderboard.setGames(savedGames);
+  players.setNicknameSuggestions(buildNicknameSuggestions(savedGames));
 }
 
 function applySavedGamesChange(change) {

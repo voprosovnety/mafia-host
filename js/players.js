@@ -3,6 +3,7 @@ import {
   calculateScores,
   CIVILIAN_ROLE,
   EXTRA_SCORE_OPTIONS,
+  filterNicknameSuggestions,
   formatScore,
   MAX_FAULTS,
   MAX_TECHNICAL_FAULTS,
@@ -78,6 +79,9 @@ export class PlayersController {
     this.randomizeButton = randomizeButton;
     this.seatingStatus = seatingStatus;
     this.records = [];
+    this.nicknameSuggestions = [];
+    this.activeNicknameRecord = null;
+    this.activeNicknameSuggestionIndex = -1;
     this.winner = null;
     this.bestMoveBonus = 0;
     this.activeNotesRecord = null;
@@ -85,6 +89,25 @@ export class PlayersController {
     notesText.addEventListener("input", () => this.storeActiveNotes());
     saveNotesButton.addEventListener("click", () => this.storeActiveNotes());
     randomizeButton.addEventListener("click", () => this.randomizeSeating());
+
+    this.nicknameSuggestionsList = document.createElement("ul");
+    this.nicknameSuggestionsList.className = "nickname-suggestions";
+    this.nicknameSuggestionsList.id = "nickname-suggestions";
+    this.nicknameSuggestionsList.setAttribute("role", "listbox");
+    this.nicknameSuggestionsList.hidden = true;
+    document.body.append(this.nicknameSuggestionsList);
+
+    document.addEventListener("pointerdown", (event) => {
+      if (
+        this.activeNicknameRecord &&
+        event.target !== this.activeNicknameRecord.name &&
+        !this.nicknameSuggestionsList.contains(event.target)
+      ) {
+        this.hideNicknameSuggestions();
+      }
+    });
+    window.addEventListener("scroll", () => this.positionNicknameSuggestions(), true);
+    window.addEventListener("resize", () => this.positionNicknameSuggestions());
 
     for (let number = 1; number <= PLAYER_COUNT; number += 1) {
       this.list.append(this.createPlayerRow(number));
@@ -167,6 +190,14 @@ export class PlayersController {
     name.autocomplete = "off";
     name.spellcheck = false;
     name.setAttribute("aria-label", `Никнейм игрока ${playerNumber}`);
+    name.setAttribute("role", "combobox");
+    name.setAttribute("aria-autocomplete", "list");
+    name.setAttribute("aria-controls", this.nicknameSuggestionsList.id);
+    name.setAttribute("aria-expanded", "false");
+
+    const nameField = document.createElement("div");
+    nameField.className = "player-name-field";
+    nameField.append(name);
 
     const role = this.createRoleSelect(playerNumber);
     const faults = document.createElement("div");
@@ -265,8 +296,16 @@ export class PlayersController {
 
     name.addEventListener("input", () => {
       this.setSeatingStatus("");
+      this.showNicknameSuggestions(record);
       this.onChange();
     });
+    name.addEventListener("focus", () => this.showNicknameSuggestions(record));
+    name.addEventListener("blur", () => {
+      window.setTimeout(() => {
+        if (document.activeElement !== name) this.hideNicknameSuggestions(record);
+      }, 0);
+    });
+    name.addEventListener("keydown", (event) => this.handleNicknameKeydown(event, record));
     role.addEventListener("change", () => {
       this.fillRemainingCivilianRoles();
       this.records.forEach((playerRecord) => this.updatePlayerScore(playerRecord));
@@ -286,7 +325,7 @@ export class PlayersController {
     this.records.push(record);
     row.append(
       number,
-      name,
+      nameField,
       role,
       faults,
       technicalFaults,
@@ -301,6 +340,138 @@ export class PlayersController {
     this.setTechnicalFaultCount(record, 0);
     this.updatePlayerScore(record);
     return row;
+  }
+
+  setNicknameSuggestions(suggestions) {
+    this.nicknameSuggestions = Array.isArray(suggestions)
+      ? suggestions.filter((name) => typeof name === "string" && name.trim() !== "")
+      : [];
+    if (this.activeNicknameRecord) this.showNicknameSuggestions(this.activeNicknameRecord);
+  }
+
+  showNicknameSuggestions(record) {
+    const suggestions = filterNicknameSuggestions(
+      this.nicknameSuggestions,
+      record.name.value,
+    ).filter((name) => name !== record.name.value);
+
+    this.nicknameSuggestionsList.replaceChildren();
+    this.activeNicknameRecord = record;
+    this.activeNicknameSuggestionIndex = -1;
+    record.name.removeAttribute("aria-activedescendant");
+
+    suggestions.forEach((suggestion, index) => {
+      const option = document.createElement("li");
+      option.id = `nickname-suggestion-${record.number}-${index}`;
+      option.className = "nickname-suggestion";
+      option.setAttribute("role", "option");
+      option.textContent = suggestion;
+      option.setAttribute("aria-selected", "false");
+      option.addEventListener("pointermove", () => this.setActiveNicknameSuggestion(index));
+      option.addEventListener("pointerdown", (event) => {
+        event.preventDefault();
+        this.selectNicknameSuggestion(record, suggestion);
+      });
+      this.nicknameSuggestionsList.append(option);
+    });
+
+    const hasSuggestions = suggestions.length > 0;
+    this.nicknameSuggestionsList.hidden = !hasSuggestions;
+    record.name.setAttribute("aria-expanded", String(hasSuggestions));
+    if (hasSuggestions) this.positionNicknameSuggestions();
+  }
+
+  hideNicknameSuggestions(record = this.activeNicknameRecord) {
+    if (record && this.activeNicknameRecord !== record) return;
+    if (this.activeNicknameRecord) {
+      this.activeNicknameRecord.name.setAttribute("aria-expanded", "false");
+      this.activeNicknameRecord.name.removeAttribute("aria-activedescendant");
+    }
+    this.nicknameSuggestionsList.hidden = true;
+    this.nicknameSuggestionsList.replaceChildren();
+    this.activeNicknameRecord = null;
+    this.activeNicknameSuggestionIndex = -1;
+  }
+
+  positionNicknameSuggestions() {
+    if (this.nicknameSuggestionsList.hidden || !this.activeNicknameRecord) return;
+    const inputRect = this.activeNicknameRecord.name.getBoundingClientRect();
+    if (inputRect.bottom < 0 || inputRect.top > window.innerHeight) {
+      this.hideNicknameSuggestions();
+      return;
+    }
+
+    const viewportMargin = 8;
+    const gap = 2;
+    const spaceBelow = window.innerHeight - inputRect.bottom - viewportMargin;
+    const spaceAbove = inputRect.top - viewportMargin;
+    const availableHeight = Math.max(72, Math.min(240, Math.max(spaceBelow, spaceAbove)));
+    this.nicknameSuggestionsList.style.width = `${inputRect.width}px`;
+    this.nicknameSuggestionsList.style.maxHeight = `${availableHeight}px`;
+    this.nicknameSuggestionsList.style.left = `${Math.max(
+      viewportMargin,
+      Math.min(inputRect.left, window.innerWidth - inputRect.width - viewportMargin),
+    )}px`;
+
+    const popupHeight = Math.min(this.nicknameSuggestionsList.scrollHeight, availableHeight);
+    const opensAbove = spaceBelow < Math.min(popupHeight, 120) && spaceAbove > spaceBelow;
+    this.nicknameSuggestionsList.style.top = `${opensAbove
+      ? Math.max(viewportMargin, inputRect.top - popupHeight - gap)
+      : inputRect.bottom + gap}px`;
+  }
+
+  setActiveNicknameSuggestion(index) {
+    const options = [...this.nicknameSuggestionsList.children];
+    if (options.length === 0) return;
+    this.activeNicknameSuggestionIndex = (index + options.length) % options.length;
+    options.forEach((option, optionIndex) => {
+      option.setAttribute(
+        "aria-selected",
+        String(optionIndex === this.activeNicknameSuggestionIndex),
+      );
+    });
+    const activeOption = options[this.activeNicknameSuggestionIndex];
+    this.activeNicknameRecord.name.setAttribute("aria-activedescendant", activeOption.id);
+    activeOption.scrollIntoView({ block: "nearest" });
+  }
+
+  handleNicknameKeydown(event, record) {
+    if (event.key === "Escape") {
+      this.hideNicknameSuggestions(record);
+      return;
+    }
+
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp" && event.key !== "Enter") return;
+    if (this.activeNicknameRecord !== record || this.nicknameSuggestionsList.hidden) {
+      this.showNicknameSuggestions(record);
+    }
+
+    const options = [...this.nicknameSuggestionsList.children];
+    if (options.length === 0) return;
+    if (event.key === "Enter") {
+      if (this.activeNicknameSuggestionIndex < 0) return;
+      event.preventDefault();
+      this.selectNicknameSuggestion(
+        record,
+        options[this.activeNicknameSuggestionIndex].textContent,
+      );
+      return;
+    }
+
+    event.preventDefault();
+    const direction = event.key === "ArrowDown" ? 1 : -1;
+    const nextIndex = this.activeNicknameSuggestionIndex < 0
+      ? (direction === 1 ? 0 : options.length - 1)
+      : this.activeNicknameSuggestionIndex + direction;
+    this.setActiveNicknameSuggestion(nextIndex);
+  }
+
+  selectNicknameSuggestion(record, suggestion) {
+    record.name.value = suggestion;
+    this.setSeatingStatus("");
+    this.hideNicknameSuggestions(record);
+    record.name.focus();
+    this.onChange();
   }
 
   updatePlayerScore(record) {
