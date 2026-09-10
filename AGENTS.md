@@ -22,7 +22,7 @@ Always run the relevant tests after changing behavior. For UI changes, verify al
 - `index.html`: semantic shell and the three SPA views.
 - `styles.css`: shared visual system and responsive layouts.
 - `app.js`: composition root only. Do not move feature logic back into this file.
-- `js/domain.js`: pure scoring, validation, stable IDs, date filtering, and leaderboard calculations.
+- `js/domain.js`: pure scoring, role auto-fill, validation, stable IDs, date filtering, and leaderboard calculations.
 - `js/storage.js`: SQLite API repository, current-game browser persistence, and legacy IndexedDB migration.
 - `js/timer.js`: timer state and Space keyboard behavior.
 - `js/voting.js`: voting rounds, votes, revotes, outcomes, and voter eligibility.
@@ -50,11 +50,14 @@ Keep modules aligned with these responsibilities. Prefer pure functions in `js/d
 - Voting starts at round 0 and can be reset to an empty round 0.
 - A player killed in night N can still vote in round N−1 and becomes ineligible starting with round N; players eliminated by voting cannot vote in later stages.
 - When a voting stage leads to a revote, only the final stage in that revote chain exposes and stores the outcome.
+- Role controls start empty. As soon as the lineup contains exactly two `Мафия`, one `Дон`, and one `Шериф`, every remaining empty role is set to `Мирный`; roles already selected by the host are preserved.
 - Roles are selected from `Мирный`, `Шериф`, `Мафия`, and `Дон`.
 - The successful target of night 1 is the first-killed player; there is no separate manual first-killed control.
 - A miss in night 1 clears and disables all three best-move fields.
 - A first-killed player gets an automatic best-move bonus of 0.5 for two distinct black-role picks or 0.8 for three; it is stored separately and included in the total score.
-- Current-game base scores are derived from role team and winning team. Other extra scores are entered manually.
+- Current-game base scores are derived from role team and winning team.
+- Manual extras and penalties are independent select controls with no arbitrary text input. Extras allow 0.2, 0.4, 0.6, 0.8, 1, and 1.2; penalties allow 0.2, 0.4, 0.6, 0.8, 1, and 1.5. Empty selection means zero.
+- The total score adds the base result, extra, best-move, and CI components, then subtracts the manual penalty and the 0.3 technical-foul penalty when present.
 - Saved games support create, read, edit, and delete through `/api/games`.
 - Duplicate game IDs return HTTP 409 and must not create another record.
 - Leaderboard date-time bounds are inclusive; an inverted interval is an error.
