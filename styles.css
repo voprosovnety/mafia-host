@@ -23,7 +23,7 @@
   --space-6: 1.5rem;
   --header-height: 3rem;
   --control-height: 2.25rem;
-  --player-columns: 2.75rem minmax(10rem, 1fr) 5.5rem 5.75rem 2.4rem 4.3rem 3rem 3.4rem 3.6rem 4.4rem;
+  --player-columns: 2.75rem minmax(10rem, 1fr) 5.5rem 5.75rem 2.4rem 4.3rem 3rem 3.4rem 3.4rem 3.6rem 4.4rem;
 }
 
 * {
@@ -1099,7 +1099,8 @@ kbd {
 }
 
 .player-role,
-.extra-score {
+.extra-score,
+.penalty-score {
   width: 100%;
   min-width: 0;
   height: 2.25rem;
@@ -1115,6 +1116,11 @@ kbd {
 .player-role {
   cursor: pointer;
   font-weight: 700;
+}
+
+.extra-score,
+.penalty-score {
+  cursor: pointer;
 }
 
 .player-role[data-role="Мирный"] {
@@ -1155,19 +1161,17 @@ kbd {
   outline-offset: 1px;
 }
 
-.extra-score:focus-visible {
+.extra-score:focus-visible,
+.penalty-score:focus-visible {
   border-color: var(--accent);
   background: var(--panel-raised);
 }
 
-.extra-score {
+.extra-score,
+.penalty-score {
   font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   font-size: 0.9rem;
   text-align: center;
-}
-
-.extra-score.is-invalid {
-  border-color: var(--danger);
 }
 
 .base-score,
@@ -2024,6 +2028,7 @@ kbd {
 .edit-game-name,
 .edit-game-base,
 .edit-game-extra,
+.edit-game-penalty,
 .edit-game-technical-fouls,
 .edit-game-notes {
   width: 100%;
@@ -2040,12 +2045,14 @@ kbd {
 .edit-game-name:focus,
 .edit-game-base:focus,
 .edit-game-extra:focus,
+.edit-game-penalty:focus,
 .edit-game-technical-fouls:focus,
 .edit-game-notes:focus {
   border-color: var(--accent);
 }
 
 .edit-game-extra,
+.edit-game-penalty,
 .edit-game-total {
   font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   text-align: center;
@@ -2053,7 +2060,7 @@ kbd {
 
 .edit-game-score-fields {
   display: grid;
-  grid-template-columns: 4.25rem 6.5rem 4.5rem minmax(0, 1fr) auto;
+  grid-template-columns: 4.25rem 4.75rem 4.75rem 4.5rem minmax(0, 1fr) auto;
   gap: 0.4rem;
   align-items: end;
 }

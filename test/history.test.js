@@ -6,13 +6,15 @@ import { scoreBreakdownItems } from "../js/history.js";
 test("score breakdown contains only non-zero components", () => {
   assert.deepEqual(scoreBreakdownItems({
     base: 1,
-    extra: -0.3,
+    extra: 0.2,
+    penalty: 0.4,
     technicalFouls: 1,
     lh: 0.5,
     ci: 0.2,
   }), [
     { label: "Победа", value: "+1" },
-    { label: "Штраф", value: "−0.3" },
+    { label: "Доп", value: "+0.2" },
+    { label: "Штраф", value: "−0.4" },
     { label: "Техфол", value: "−0.3" },
     { label: "ЛХ", value: "+0.5" },
     { label: "CI", value: "+0.2" },

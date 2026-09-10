@@ -2,12 +2,14 @@ import {
   calculateTechnicalFoulPenalty,
   dateFromInputValue,
   dateToInputValue,
+  EXTRA_SCORE_OPTIONS,
   formatScore,
   gamesCountLabel,
   getGameId,
   MAX_TECHNICAL_FAULTS,
+  normalizeManualScores,
   normalizeTechnicalFouls,
-  parseExtraScore,
+  PENALTY_SCORE_OPTIONS,
   ROLE_OPTIONS,
   roundScore,
   winnerLabel,
@@ -56,7 +58,12 @@ function formatSignedScore(score) {
 export function scoreBreakdownItems(player) {
   const items = [];
   const base = Number(player.base) || 0;
-  const extra = Number(player.extra) || 0;
+  let extra = Number(player.extra) || 0;
+  let penalty = Number(player.penalty) || 0;
+  if (player.penalty === undefined && extra < 0) {
+    penalty = Math.abs(extra);
+    extra = 0;
+  }
   const lh = Number(player.lh) || 0;
   const ci = Number(player.ci) || 0;
   const technicalFouls = normalizeTechnicalFouls(player.technicalFouls);
@@ -64,7 +71,7 @@ export function scoreBreakdownItems(player) {
 
   if (base !== 0) items.push({ label: "Победа", value: formatSignedScore(base) });
   if (extra > 0) items.push({ label: "Доп", value: formatSignedScore(extra) });
-  if (extra < 0) items.push({ label: "Штраф", value: formatSignedScore(extra) });
+  if (penalty > 0) items.push({ label: "Штраф", value: formatSignedScore(-penalty) });
   if (technicalPenalty !== 0) {
     const label = technicalFouls === 1 ? "Техфол" : `Техфол ×${technicalFouls}`;
     items.push({ label, value: formatSignedScore(technicalPenalty) });
@@ -154,6 +161,22 @@ function createEditTechnicalFoulsSelect(technicalFouls) {
     select.append(option);
   }
   select.value = String(Math.min(MAX_TECHNICAL_FAULTS, Math.max(0, Number(technicalFouls) || 0)));
+  return select;
+}
+
+function createEditScoreSelect(className, score, options) {
+  const select = document.createElement("select");
+  select.className = className;
+  const values = [0, ...options];
+  const current = Number(score) || 0;
+  if (current > 0 && !values.includes(current)) values.push(current);
+  values.forEach((value) => {
+    const option = document.createElement("option");
+    option.value = String(value);
+    option.textContent = value === 0 ? "—" : String(value);
+    if (value === current) option.selected = true;
+    select.append(option);
+  });
   return select;
 }
 
@@ -289,12 +312,11 @@ export class HistoryView {
 
   updateEditedTotal(row) {
     const base = Number(row.base.value);
-    const extra = parseExtraScore(row.extra.value);
-    const valid = extra !== null && (base === 0 || base === 1);
-    row.extra.classList.toggle("is-invalid", extra === null);
+    const { extra, penalty } = normalizeManualScores(row.extra.value, row.penalty.value);
+    const valid = extra !== null && penalty !== null && (base === 0 || base === 1);
     const technicalPenalty = calculateTechnicalFoulPenalty(row.technicalFouls.value);
     row.total.value = valid
-      ? formatScore(base + extra + row.lh + row.ci + technicalPenalty)
+      ? formatScore(base + extra - penalty + row.lh + row.ci + technicalPenalty)
       : "—";
     return valid;
   }
@@ -347,14 +369,25 @@ export class HistoryView {
       const base = createEditBaseSelect(player.base);
       baseLabel.append(base);
       const extraLabel = document.createElement("label");
-      extraLabel.textContent = "Доп./штраф";
-      const extra = document.createElement("input");
-      extra.className = "edit-game-extra";
-      extra.type = "text";
-      extra.inputMode = "decimal";
-      extra.maxLength = 4;
-      extra.value = formatScore(Number(player.extra));
+      extraLabel.textContent = "Допы";
+      const legacyExtra = Number(player.extra) || 0;
+      const legacyPenalty = player.penalty === undefined && legacyExtra < 0
+        ? Math.abs(legacyExtra)
+        : Number(player.penalty) || 0;
+      const extra = createEditScoreSelect(
+        "edit-game-extra",
+        legacyExtra > 0 ? legacyExtra : 0,
+        EXTRA_SCORE_OPTIONS,
+      );
       extraLabel.append(extra);
+      const penaltyLabel = document.createElement("label");
+      penaltyLabel.textContent = "Штрафы";
+      const penalty = createEditScoreSelect(
+        "edit-game-penalty",
+        legacyPenalty,
+        PENALTY_SCORE_OPTIONS,
+      );
+      penaltyLabel.append(penalty);
       const technicalFoulsLabel = document.createElement("label");
       technicalFoulsLabel.textContent = "Техфолы";
       const technicalFouls = createEditTechnicalFoulsSelect(player.technicalFouls);
@@ -368,7 +401,14 @@ export class HistoryView {
       const total = document.createElement("output");
       total.className = "edit-game-total";
       total.setAttribute("aria-label", `Итоговый балл игрока ${player.number}`);
-      scoreFields.append(baseLabel, extraLabel, technicalFoulsLabel, storedComponents, total);
+      scoreFields.append(
+        baseLabel,
+        extraLabel,
+        penaltyLabel,
+        technicalFoulsLabel,
+        storedComponents,
+        total,
+      );
       scoreCell.append(scoreFields);
 
       const notesCell = document.createElement("td");
@@ -388,6 +428,7 @@ export class HistoryView {
         role,
         base,
         extra,
+        penalty,
         technicalFouls,
         lh: Number(player.lh) || 0,
         ci: Number(player.ci) || 0,
@@ -395,7 +436,8 @@ export class HistoryView {
         total,
       };
       base.addEventListener("change", () => this.updateEditedTotal(row));
-      extra.addEventListener("input", () => this.updateEditedTotal(row));
+      extra.addEventListener("change", () => this.updateEditedTotal(row));
+      penalty.addEventListener("change", () => this.updateEditedTotal(row));
       technicalFouls.addEventListener("change", () => this.updateEditedTotal(row));
       this.playerRows.push(row);
       this.updateEditedTotal(row);
@@ -435,7 +477,7 @@ export class HistoryView {
     updatedGame.winnerLabel = winnerLabel(updatedGame.winner);
     updatedGame.players = this.playerRows.map((row) => {
       const base = Number(row.base.value);
-      const extra = parseExtraScore(row.extra.value);
+      const { extra, penalty } = normalizeManualScores(row.extra.value, row.penalty.value);
       const technicalFouls = Number(row.technicalFouls.value);
       const technicalPenalty = calculateTechnicalFoulPenalty(technicalFouls);
       return {
@@ -444,10 +486,11 @@ export class HistoryView {
         role: row.role.value,
         base,
         extra,
+        penalty,
         technicalFouls,
         lh: row.lh,
         ci: row.ci,
-        total: roundScore(base + extra + row.lh + row.ci + technicalPenalty),
+        total: roundScore(base + extra - penalty + row.lh + row.ci + technicalPenalty),
         notes: row.notes.value,
         isFirstKilled: row.isFirstKilled,
       };

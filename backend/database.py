@@ -9,7 +9,7 @@ from pathlib import Path
 ALLOWED_ROLES = {"Мирный", "Шериф", "Мафия", "Дон"}
 MAX_TECHNICAL_FAULTS = 1
 TECHNICAL_FAULT_PENALTY = -0.3
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 
 class ValidationError(ValueError):
@@ -93,7 +93,11 @@ def normalize_game(value: object) -> dict:
         name = str(player.get("name", "")).strip()
         role = str(player.get("role", "")).strip()
         base = score_number(player.get("base"), "Балл")
-        extra = score_number(player.get("extra"), "Доп.")
+        extra = score_number(player.get("extra"), "Допы")
+        penalty = score_number(player.get("penalty", 0), "Штрафы")
+        if "penalty" not in player and extra < 0:
+            penalty = abs(extra)
+            extra = 0
         lh = score_number(player.get("lh", 0), "ЛХ")
         ci = score_number(player.get("ci", 0), "CI")
         technical_fouls = player.get("technicalFouls", 0)
@@ -111,6 +115,8 @@ def normalize_game(value: object) -> dict:
             raise ValidationError(f"Некорректная роль игрока {number}")
         if base not in {0, 1}:
             raise ValidationError(f"Балл игрока {number} должен быть 0 или 1")
+        if extra < 0 or penalty < 0:
+            raise ValidationError(f"Допы и штрафы игрока {number} не могут быть отрицательными")
         if (
             isinstance(technical_fouls, bool)
             or not isinstance(technical_fouls, int)
@@ -121,7 +127,7 @@ def normalize_game(value: object) -> dict:
             raise ValidationError(f"Некорректные заметки игрока {number}")
         technical_penalty = round(technical_fouls * TECHNICAL_FAULT_PENALTY, 2)
         expected_total = round(
-            float(base) + float(extra) + float(lh) + float(ci) + technical_penalty,
+            float(base) + float(extra) - float(penalty) + float(lh) + float(ci) + technical_penalty,
             2,
         )
         if expected_total != round(float(total), 2):
@@ -137,6 +143,7 @@ def normalize_game(value: object) -> dict:
             "role": role,
             "base": base,
             "extra": extra,
+            "penalty": penalty,
             "lh": lh,
             "ci": ci,
             "technicalFouls": technical_fouls,
@@ -207,6 +214,7 @@ class GamesDatabase:
                     role TEXT NOT NULL,
                     base_score REAL NOT NULL CHECK (base_score IN (0, 1)),
                     extra_score REAL NOT NULL,
+                    penalty_score REAL NOT NULL DEFAULT 0,
                     lh_score REAL NOT NULL DEFAULT 0,
                     ci_score REAL NOT NULL DEFAULT 0,
                     technical_fouls INTEGER NOT NULL DEFAULT 0
@@ -261,6 +269,18 @@ class GamesDatabase:
                         CHECK ({column} BETWEEN 1 AND 10)
                         """
                     )
+            if schema_version < 5 and "penalty_score" not in player_columns:
+                connection.execute(
+                    "ALTER TABLE players ADD COLUMN penalty_score REAL NOT NULL DEFAULT 0"
+                )
+            if schema_version < 5:
+                connection.execute(
+                    """
+                    UPDATE players
+                    SET penalty_score = ABS(extra_score), extra_score = 0
+                    WHERE extra_score < 0
+                    """
+                )
             connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
 
     @staticmethod
@@ -280,14 +300,14 @@ class GamesDatabase:
         connection.executemany(
             """
             INSERT INTO players (
-                game_id, player_number, nickname, role, base_score, extra_score, lh_score,
+                game_id, player_number, nickname, role, base_score, extra_score, penalty_score, lh_score,
                 ci_score, technical_fouls, total_score, notes, is_first_killed
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             [
                 (
                     game["gameId"], player["number"], player["name"], player["role"],
-                    player["base"], player["extra"], player["lh"], player["ci"],
+                    player["base"], player["extra"], player["penalty"], player["lh"], player["ci"],
                     player["technicalFouls"], player["total"], player["notes"],
                     player["isFirstKilled"],
                 )
@@ -306,7 +326,7 @@ class GamesDatabase:
             ).fetchall()
             player_rows = connection.execute(
                 """
-                SELECT game_id, player_number, nickname, role, base_score, extra_score, lh_score,
+                SELECT game_id, player_number, nickname, role, base_score, extra_score, penalty_score, lh_score,
                        ci_score, technical_fouls, total_score, notes, is_first_killed
                 FROM players ORDER BY game_id, player_number
                 """
@@ -320,6 +340,7 @@ class GamesDatabase:
                 "role": row["role"],
                 "base": row["base_score"],
                 "extra": row["extra_score"],
+                "penalty": row["penalty_score"],
                 "lh": row["lh_score"],
                 "ci": row["ci_score"],
                 "technicalFouls": row["technical_fouls"],
