@@ -217,6 +217,20 @@ test("a voting round header toggles its collapsed state and accessibility state"
   assert.equal(attributes.get("aria-expanded"), "true");
 });
 
+test("restored voting rounds start collapsed", () => {
+  const controller = Object.create(VotingController.prototype);
+  controller.renderAll = () => {};
+
+  controller.restore([
+    { roundNumber: 0, nominations: [] },
+    { roundNumber: 1, nominations: [] },
+    { kind: "revote", roundNumber: 1, revoteNumber: 1, nominations: [] },
+  ], 2);
+
+  assert.deepEqual([...controller.collapsedRounds], [0, 1]);
+  assert.equal(controller.currentRoundIndex, 2);
+});
+
 test("automatic voting waits until every eligible player has voted", () => {
   const [stage] = normalizeVotingStages([{
     nominations: [

@@ -964,7 +964,7 @@ export class VotingController {
 
   restore(rounds, currentRoundIndex) {
     this.rounds = normalizeVotingStages(rounds);
-    this.collapsedRounds.clear();
+    this.collapsedRounds = new Set(this.rounds.map(({ roundNumber }) => roundNumber));
     this.hasAppliedNightKills = false;
     const storedIndex = Number(currentRoundIndex);
     this.currentRoundIndex = Number.isInteger(storedIndex)
