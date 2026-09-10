@@ -1413,23 +1413,29 @@ kbd {
 
 .history-list {
   display: grid;
-  gap: 0;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 28rem), 30rem));
+  gap: var(--space-3);
   align-items: start;
+  padding: var(--space-3);
+}
+
+.history-list:empty {
+  display: none;
 }
 
 .history-game {
   min-width: 0;
-  border-bottom: 1px solid var(--line);
-  background: transparent;
+  border: 1px solid var(--line);
+  background: var(--panel-raised);
 }
 
 .history-game-summary {
   display: grid;
-  grid-template-columns: minmax(7.25rem, 9rem) 4.75rem minmax(0, 1fr) auto auto;
-  gap: var(--space-3);
+  grid-template-columns: auto auto minmax(0, 1fr) auto auto;
+  gap: var(--space-2);
   align-items: center;
-  min-height: 2.75rem;
-  padding: var(--space-2) 1.2rem;
+  min-height: 2.6rem;
+  padding: 0.35rem 0.7rem;
   cursor: pointer;
   list-style: none;
 }
@@ -1486,7 +1492,11 @@ kbd {
 
 .history-game-summary:hover,
 .history-game[open] .history-game-summary {
-  background: var(--panel-raised);
+  background: #252a2f;
+}
+
+.history-game[open] .history-game-summary {
+  border-bottom: 1px solid var(--line);
 }
 
 .history-game-summary:focus-visible {
@@ -1497,7 +1507,7 @@ kbd {
 .history-game-date,
 .history-game-time {
   font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
-  font-size: 0.88rem;
+  font-size: 0.78rem;
   font-variant-numeric: tabular-nums;
 }
 
@@ -1507,11 +1517,12 @@ kbd {
 
 .history-winner {
   justify-self: start;
-  padding-left: var(--space-2);
+  padding-left: 0.4rem;
   border-left: 2px solid var(--line);
-  font-size: 0.72rem;
+  font-size: 0.66rem;
   font-weight: 800;
   letter-spacing: 0.03em;
+  white-space: nowrap;
 }
 
 .history-winner.is-red {
@@ -1526,7 +1537,7 @@ kbd {
 
 .history-game-table-wrap {
   min-width: 0;
-  padding: 0 1.2rem var(--space-3);
+  padding: 0 0.65rem 0.65rem;
   overflow-x: auto;
   background: var(--panel-raised);
 }
@@ -1535,13 +1546,13 @@ kbd {
   table-layout: fixed;
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.95rem;
+  font-size: 0.82rem;
 }
 
 .history-table th,
 .history-table td {
-  height: 2.4rem;
-  padding: 0.35rem 0.45rem;
+  height: 2rem;
+  padding: 0.22rem 0.3rem;
   border-bottom: 1px solid var(--line);
   text-align: left;
   vertical-align: middle;
@@ -1549,7 +1560,7 @@ kbd {
 
 .history-table th:first-child,
 .history-table td:first-child {
-  width: 2.15rem;
+  width: 1.8rem;
   text-align: center;
 }
 
@@ -1560,13 +1571,13 @@ kbd {
 
 .history-table th:nth-child(3),
 .history-table td:nth-child(3) {
-  width: 5.5rem;
+  width: 4.85rem;
   text-align: center;
 }
 
 .history-table th:nth-child(4),
 .history-table td:nth-child(4) {
-  width: 4.5rem;
+  width: 3.7rem;
 }
 
 .history-table td:nth-child(2) {
@@ -1598,7 +1609,7 @@ kbd {
 
 .history-first-killed-badge {
   display: inline-block;
-  margin-left: 0.45rem;
+  margin-left: 0.3rem;
   padding: 0.08rem 0.22rem;
   border: 1px solid #4f9bc4;
   background: #286d91;
@@ -1611,7 +1622,7 @@ kbd {
 
 .history-table th {
   color: var(--muted);
-  font-size: 0.72rem;
+  font-size: 0.62rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -1622,7 +1633,7 @@ kbd {
 }
 
 .history-score-trigger {
-  min-width: 2.5rem;
+  min-width: 2.2rem;
   padding: 0.22rem 0.15rem;
   border: 0;
   border-bottom: 1px dashed #687078;
@@ -1631,7 +1642,7 @@ kbd {
   background: transparent;
   color: var(--accent);
   font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
-  font-size: 0.9rem;
+  font-size: 0.8rem;
   font-weight: 900;
   font-variant-numeric: tabular-nums;
   text-align: right;
@@ -1736,10 +1747,10 @@ kbd {
 
 .history-role {
   display: inline-block;
-  min-width: 5rem;
-  padding: 0.28rem 0.32rem;
+  min-width: 4.35rem;
+  padding: 0.2rem 0.25rem;
   border: 1px solid var(--line);
-  font-size: 0.78rem;
+  font-size: 0.68rem;
   font-weight: 800;
   text-align: center;
 }
@@ -1866,7 +1877,7 @@ kbd {
 
 .leaderboard-table th {
   position: sticky;
-  top: var(--header-height);
+  top: 0;
   z-index: 2;
   background: var(--panel);
   color: var(--muted);
