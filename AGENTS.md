@@ -72,13 +72,13 @@ The HTTP server must bind to loopback by default. Keep the SQLite file inaccessi
 
 ## Git and delivery workflow
 
-- At the beginning of repository work, run `git fetch origin --prune` and inspect the current branch, upstream, and ahead/behind state. Fast-forward a clean branch when possible; never overwrite or discard local changes to force synchronization.
+- At the beginning of repository work, run `git fetch origin --prune`, switch to `main`, and inspect its upstream and ahead/behind state. Fast-forward a clean `main` when possible; never overwrite or discard local changes to force synchronization.
 - After every completed code-changing task, update local `docs/changes.md`: move the relevant item from `Запланировано` to `Выполнено` (or add it), with one short dated line. Keep this journal concise. It is intentionally ignored by Git and must stay local.
-- After every completed code-changing task, run the relevant local checks, commit all in-scope source and test changes, and push the current branch to `origin` unless the user explicitly says not to commit or push.
+- Work directly on `main`. Do not create feature branches or pull requests unless the user explicitly requests them.
+- After every completed code-changing task, run the relevant local checks, commit all in-scope source and test changes, and push `main` to `origin` unless the user explicitly says not to commit or push.
 - Never include `data/mafia-host.sqlite3`, SQLite WAL/SHM files, `.DS_Store`, caches, credentials, or unrelated user changes in a commit.
-- Use an `agent/<description>` feature branch when starting from `main` or from an already merged branch. Keep commits focused and use terse imperative commit subjects.
-- After pushing a feature branch, create or update its pull request against `main`. Confirm that GitHub Actions CI passes; if CI fails, inspect the logs, fix the failure, recommit, and push the correction.
-- A successful local test run does not replace remote synchronization: the task handoff must include the branch name, commit hash, push result, pull-request link, and CI status.
+- Keep commits focused and use terse imperative commit subjects. Confirm that GitHub Actions CI passes after pushing; if CI fails, inspect the logs, fix the failure, recommit, and push the correction.
+- A successful local test run does not replace remote synchronization: the task handoff must include the commit hash, push result, and CI status.
 
 ## Style
 
