@@ -65,6 +65,35 @@ test("best-move inputs are disabled in the controller after a first-night miss",
   assert.equal(inputs.every((input) => input.disabled && input.value === ""), true);
 });
 
+test("adding a miss replaces the untouched first-night slot", () => {
+  const controller = Object.create(NightController.prototype);
+  controller.state = normalizeNightState(null);
+  controller.bestMoveInputs = [];
+  controller.renderShots = () => {};
+  controller.updateFirstKilledOutput = () => {};
+  controller.onChange = () => {};
+
+  controller.addNight({ target: null, miss: true });
+
+  assert.deepEqual(controller.state.shots, [{ target: null, miss: true }]);
+});
+
+test("adding a later miss appends it after recorded nights", () => {
+  const controller = Object.create(NightController.prototype);
+  controller.state = normalizeNightState({ shots: [{ target: 4, miss: false }] });
+  controller.bestMoveInputs = [];
+  controller.renderShots = () => {};
+  controller.updateFirstKilledOutput = () => {};
+  controller.onChange = () => {};
+
+  controller.addNight({ target: null, miss: true });
+
+  assert.deepEqual(controller.state.shots, [
+    { target: 4, miss: false },
+    { target: null, miss: true },
+  ]);
+});
+
 test("only distinct successful night targets are treated as killed", () => {
   assert.deepEqual(killedPlayersFromNightState({
     shots: [

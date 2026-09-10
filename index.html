@@ -51,11 +51,11 @@
 
           <section class="night-panel" aria-labelledby="night-heading">
             <div class="night-heading-row">
-              <div>
-                <h2 id="night-heading">Ночи</h2>
-                <p id="night-summary" role="status">Ночей: 1 · целей: 0 · промахов: 0</p>
+              <h2 id="night-heading">Ночи</h2>
+              <div class="night-add-actions" role="group" aria-label="Добавить результат ночи">
+                <button class="add-night-button" id="add-night" type="button" title="Добавить убитого" aria-label="Добавить убитого в следующую ночь">+</button>
+                <button class="add-night-button add-miss-button" id="add-night-miss" type="button" title="Добавить промах" aria-label="Добавить промах в следующую ночь">×</button>
               </div>
-              <button class="add-night-button" id="add-night" type="button">+ Ночь</button>
             </div>
             <div class="night-workbench">
               <div class="night-shots-list" id="night-shots-list" aria-label="Цели ночной стрельбы"></div>

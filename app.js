@@ -93,7 +93,7 @@ players.records.forEach((record) => voting.registerNominationButton(record.numbe
 night = new NightController({
   shotsList: document.querySelector("#night-shots-list"),
   addNightButton: document.querySelector("#add-night"),
-  summary: document.querySelector("#night-summary"),
+  addMissNightButton: document.querySelector("#add-night-miss"),
   firstKilledOutput: document.querySelector("#first-killed-output"),
   bestMoveBonusOutput: document.querySelector("#best-move-bonus"),
   bestMoveInputs: document.querySelectorAll(".best-move-input"),

@@ -56,14 +56,13 @@ export class NightController {
   constructor({
     shotsList,
     addNightButton,
-    summary,
+    addMissNightButton,
     firstKilledOutput,
     bestMoveBonusOutput,
     bestMoveInputs,
     onChange,
   }) {
     this.shotsList = shotsList;
-    this.summary = summary;
     this.firstKilledOutput = firstKilledOutput;
     this.bestMoveBonusOutput = bestMoveBonusOutput;
     this.bestMoveInputs = [...bestMoveInputs];
@@ -71,11 +70,11 @@ export class NightController {
     this.state = normalizeNightState(null);
 
     addNightButton.addEventListener("click", () => {
-      this.state.shots.push({ target: null, miss: false });
-      this.renderShots();
-      this.updateSummary();
-      this.updateFirstKilledOutput();
-      this.onChange();
+      this.addNight({ target: null, miss: false });
+      this.shotsList.querySelector(".night-shot-row:last-child .shot-target")?.focus();
+    });
+    addMissNightButton.addEventListener("click", () => {
+      this.addNight({ target: null, miss: true });
     });
     this.bestMoveInputs.forEach((input, index) => {
       input.addEventListener("input", () => {
@@ -91,10 +90,7 @@ export class NightController {
   createShotRow(shot, index) {
     const row = document.createElement("div");
     row.className = "night-shot-row";
-
-    const label = document.createElement("span");
-    label.className = "night-number";
-    label.textContent = `Н${index + 1}`;
+    row.classList.toggle("is-miss", shot.miss);
 
     const target = document.createElement("input");
     target.className = "shot-target";
@@ -111,50 +107,51 @@ export class NightController {
       const value = validPlayerNumber(target.value);
       shot.target = value;
       target.classList.toggle("is-invalid", target.value !== "" && value === null);
-      this.updateSummary();
       this.updateFirstKilledOutput();
       this.onChange();
     });
 
-    const miss = document.createElement("button");
-    miss.className = "shot-miss-button";
-    miss.classList.toggle("is-selected", shot.miss);
-    miss.type = "button";
+    const miss = document.createElement("span");
+    miss.className = "night-miss-marker";
     miss.textContent = "×";
-    miss.title = shot.miss ? "Снять промах" : "Отметить промах";
-    miss.setAttribute("aria-pressed", String(shot.miss));
-    miss.setAttribute(
-      "aria-label",
-      `${shot.miss ? "Снять" : "Отметить"} промах в ночь ${index + 1}`,
-    );
-    miss.addEventListener("click", () => {
-      shot.miss = !shot.miss;
-      if (shot.miss) shot.target = null;
-      this.updateBestMoveAvailability();
-      this.renderShots();
-      this.updateSummary();
-      this.updateFirstKilledOutput();
-      this.onChange();
-    });
+    miss.setAttribute("aria-label", `Промах в ночь ${index + 1}`);
+    miss.hidden = !shot.miss;
 
     const remove = document.createElement("button");
     remove.className = "remove-night-button";
     remove.type = "button";
     remove.textContent = "−";
     remove.title = `Удалить ночь ${index + 1}`;
-    remove.hidden = this.state.shots.length === 1;
     remove.setAttribute("aria-label", `Удалить ночь ${index + 1}`);
     remove.addEventListener("click", () => {
-      this.state.shots.splice(index, 1);
+      if (this.state.shots.length === 1) {
+        this.state.shots = [{ target: null, miss: false }];
+      } else {
+        this.state.shots.splice(index, 1);
+      }
       this.updateBestMoveAvailability();
       this.renderShots();
-      this.updateSummary();
       this.updateFirstKilledOutput();
       this.onChange();
     });
 
-    row.append(label, target, miss, remove);
+    row.append(shot.miss ? miss : target, remove);
     return row;
+  }
+
+  addNight(shot) {
+    const isInitialBlank = this.state.shots.length === 1
+      && this.state.shots[0].target === null
+      && this.state.shots[0].miss === false;
+    if (shot.miss && isInitialBlank) {
+      this.state.shots[0] = shot;
+    } else {
+      this.state.shots.push(shot);
+    }
+    this.updateBestMoveAvailability();
+    this.renderShots();
+    this.updateFirstKilledOutput();
+    this.onChange();
   }
 
   renderShots() {
@@ -162,12 +159,6 @@ export class NightController {
     this.state.shots.forEach((shot, index) => {
       this.shotsList.append(this.createShotRow(shot, index));
     });
-  }
-
-  updateSummary() {
-    const filled = this.state.shots.filter((shot) => shot.target !== null).length;
-    const misses = this.state.shots.filter((shot) => shot.miss).length;
-    this.summary.textContent = `Ночей: ${this.state.shots.length} · целей: ${filled} · промахов: ${misses}`;
   }
 
   getFirstKilledPlayerNumber() {
@@ -203,7 +194,6 @@ export class NightController {
   render() {
     this.renderShots();
     this.updateBestMoveAvailability();
-    this.updateSummary();
     this.updateFirstKilledOutput();
   }
 

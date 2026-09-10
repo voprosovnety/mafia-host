@@ -721,38 +721,42 @@ textarea {
   border-top: 1px solid var(--line);
 }
 
-.night-heading-row,
-.night-heading-row > div {
+.night-heading-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 0.65rem;
+  gap: 0.5rem;
 }
 
-.night-panel p {
-  margin: 0;
-  color: var(--muted);
-  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
-  font-size: 0.68rem;
+.night-add-actions {
+  display: flex;
+  gap: 0.3rem;
 }
 
 .add-night-button {
-  min-height: 1.9rem;
-  padding: 0.25rem 0.55rem;
+  width: 1.85rem;
+  height: 1.85rem;
+  padding: 0;
   border: 1px solid #71679a;
   border-radius: 0;
   background: transparent;
   color: #c7bce8;
-  font-size: 0.62rem;
+  font-size: 1rem;
   font-weight: 800;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
   cursor: pointer;
 }
 
 .add-night-button:hover {
   background: #302946;
+}
+
+.add-miss-button {
+  border-color: #86504c;
+  color: #d99b95;
+}
+
+.add-miss-button:hover {
+  background: #3c2524;
 }
 
 .night-workbench {
@@ -2145,23 +2149,17 @@ kbd {
 
 .night-shot-row {
   display: grid;
-  grid-template-columns: auto 2.25rem 1.75rem 1.35rem;
-  gap: 0.2rem;
+  grid-template-columns: 1.85rem 1rem;
+  gap: 0.1rem;
   align-items: center;
-  min-height: 2.65rem;
-  padding: 0.2rem;
+  min-height: 2.15rem;
+  padding: 0.12rem;
   border: 1px solid var(--line);
   background: var(--page);
 }
 
-.night-number {
-  min-width: 1.35rem;
-  color: var(--muted);
-  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
-  font-size: 0.62rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  text-align: center;
+.night-shot-row.is-miss {
+  border-color: #5d3835;
 }
 
 .shot-target,
@@ -2178,6 +2176,12 @@ kbd {
   font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   text-align: center;
   appearance: textfield;
+}
+
+.shot-target {
+  width: 1.85rem;
+  height: 1.75rem;
+  padding: 0.15rem;
 }
 
 .shot-target::-webkit-inner-spin-button,
@@ -2210,34 +2214,27 @@ kbd {
   cursor: not-allowed;
 }
 
-.shot-miss-button,
+.night-miss-marker {
+  display: grid;
+  width: 1.85rem;
+  height: 1.75rem;
+  place-items: center;
+  color: #d99b95;
+  font-size: 1rem;
+  font-weight: 800;
+}
+
 .remove-night-button {
-  width: 1.75rem;
-  height: 2.15rem;
+  width: 1rem;
+  height: 1.75rem;
   padding: 0;
-  border: 1px solid var(--line);
+  border: 0;
   border-radius: 0;
   background: transparent;
   color: var(--muted);
-  font-size: 1rem;
+  font-size: 0.8rem;
   font-weight: 800;
   cursor: pointer;
-}
-
-.shot-miss-button:hover,
-.shot-miss-button.is-selected {
-  border-color: var(--danger);
-  color: var(--text);
-}
-
-.shot-miss-button.is-selected {
-  background: #5b302d;
-}
-
-.remove-night-button {
-  width: 1.35rem;
-  border-color: transparent;
-  font-size: 0.9rem;
 }
 
 .remove-night-button:hover {
@@ -2301,7 +2298,6 @@ kbd {
 }
 
 .add-night-button:focus-visible,
-.shot-miss-button:focus-visible,
 .remove-night-button:focus-visible {
   outline: 3px solid var(--text);
   outline-offset: 2px;
