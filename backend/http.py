@@ -9,7 +9,7 @@ from urllib.parse import unquote, urlparse
 
 from .database import DuplicateGameError, GamesDatabase, ValidationError
 
-API_VERSION = 2
+API_VERSION = 3
 
 
 class MafiaRequestHandler(SimpleHTTPRequestHandler):

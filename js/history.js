@@ -45,6 +45,12 @@ function createPlayerNameCell(player) {
     badge.textContent = "ПУ";
     cell.append(badge);
   }
+  if (player.isDayBestMovePlayer) {
+    const badge = document.createElement("span");
+    badge.className = "history-day-best-move-badge";
+    badge.textContent = "ДЛХ";
+    cell.append(badge);
+  }
   return cell;
 }
 
@@ -65,6 +71,7 @@ export function scoreBreakdownItems(player) {
     extra = 0;
   }
   const lh = Number(player.lh) || 0;
+  const dlh = Number(player.dlh) || 0;
   const ci = Number(player.ci) || 0;
   const technicalFouls = normalizeTechnicalFouls(player.technicalFouls);
   const technicalPenalty = calculateTechnicalFoulPenalty(technicalFouls);
@@ -77,6 +84,7 @@ export function scoreBreakdownItems(player) {
     items.push({ label, value: formatSignedScore(technicalPenalty) });
   }
   if (lh !== 0) items.push({ label: "ЛХ", value: formatSignedScore(lh) });
+  if (dlh !== 0) items.push({ label: "ДЛХ", value: formatSignedScore(dlh) });
   if (ci !== 0) items.push({ label: "CI", value: formatSignedScore(ci) });
   return items;
 }
@@ -316,7 +324,7 @@ export class HistoryView {
     const valid = extra !== null && penalty !== null && (base === 0 || base === 1);
     const technicalPenalty = calculateTechnicalFoulPenalty(row.technicalFouls.value);
     row.total.value = valid
-      ? formatScore(base + extra - penalty + row.lh + row.ci + technicalPenalty)
+      ? formatScore(base + extra - penalty + row.lh + row.dlh + row.ci + technicalPenalty)
       : "—";
     return valid;
   }
@@ -328,8 +336,10 @@ export class HistoryView {
     time.value = game.time;
     winner.value = game.winner;
     const firstKilledPlayer = game.players.find((player) => player.isFirstKilled === true);
+    const dayBestMovePlayer = game.players.find((player) => player.isDayBestMovePlayer === true);
     const bestMoveNumbers = (Array.isArray(game.bestMove) ? game.bestMove : [])
       .filter((number) => Number.isInteger(number));
+    const bestMoveDescriptions = [];
     if (firstKilledPlayer) {
       const numbersLabel = bestMoveNumbers.length > 0
         ? bestMoveNumbers.join(" · ")
@@ -337,12 +347,21 @@ export class HistoryView {
       const bonusLabel = Number(firstKilledPlayer.lh)
         ? ` · бонус ${formatSignedScore(firstKilledPlayer.lh)}`
         : "";
-      bestMove.textContent = `ЛХ первого убиенного №${firstKilledPlayer.number}: ${numbersLabel}${bonusLabel}`;
-      bestMove.hidden = false;
-    } else {
-      bestMove.textContent = "";
-      bestMove.hidden = true;
+      bestMoveDescriptions.push(`ЛХ первого убиенного №${firstKilledPlayer.number}: ${numbersLabel}${bonusLabel}`);
     }
+    if (dayBestMovePlayer) {
+      const dayBestMoveNumbers = (Array.isArray(game.dayBestMove) ? game.dayBestMove : [])
+        .filter((number) => Number.isInteger(number));
+      const numbersLabel = dayBestMoveNumbers.length > 0
+        ? dayBestMoveNumbers.join(" · ")
+        : "номера не сохранены";
+      const bonusLabel = Number(dayBestMovePlayer.dlh)
+        ? ` · бонус ${formatSignedScore(dayBestMovePlayer.dlh)}`
+        : "";
+      bestMoveDescriptions.push(`ДЛХ игрока №${dayBestMovePlayer.number}: ${numbersLabel}${bonusLabel}`);
+    }
+    bestMove.textContent = bestMoveDescriptions.join(" · ");
+    bestMove.hidden = bestMoveDescriptions.length === 0;
     error.textContent = "";
     body.replaceChildren();
     this.playerRows = [];
@@ -396,6 +415,7 @@ export class HistoryView {
       storedComponents.className = "edit-game-stored-components";
       const storedParts = [];
       if (Number(player.lh)) storedParts.push(`${formatSignedScore(player.lh)} ЛХ`);
+      if (Number(player.dlh)) storedParts.push(`${formatSignedScore(player.dlh)} ДЛХ`);
       if (Number(player.ci)) storedParts.push(`${formatSignedScore(player.ci)} CI`);
       storedComponents.textContent = storedParts.join(" · ");
       const total = document.createElement("output");
@@ -424,6 +444,7 @@ export class HistoryView {
       const row = {
         playerNumber: player.number,
         isFirstKilled: player.isFirstKilled === true,
+        isDayBestMovePlayer: player.isDayBestMovePlayer === true,
         name,
         role,
         base,
@@ -431,6 +452,7 @@ export class HistoryView {
         penalty,
         technicalFouls,
         lh: Number(player.lh) || 0,
+        dlh: Number(player.dlh) || 0,
         ci: Number(player.ci) || 0,
         notes,
         total,
@@ -490,9 +512,11 @@ export class HistoryView {
         technicalFouls,
         lh: row.lh,
         ci: row.ci,
-        total: roundScore(base + extra - penalty + row.lh + row.ci + technicalPenalty),
+        dlh: row.dlh,
+        total: roundScore(base + extra - penalty + row.lh + row.dlh + row.ci + technicalPenalty),
         notes: row.notes.value,
         isFirstKilled: row.isFirstKilled,
+        isDayBestMovePlayer: row.isDayBestMovePlayer,
       };
     });
     delete updatedGame.gameId;

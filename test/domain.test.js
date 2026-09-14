@@ -68,11 +68,11 @@ test("random seating shuffles a copy without losing players", () => {
 
 test("base score follows the role team and winner", () => {
   assert.deepEqual(calculateScores("Мирный", "0.6", "", "red"), {
-    team: "red", base: 1, extra: 0.6, penalty: 0, lh: 0, ci: 0,
+    team: "red", base: 1, extra: 0.6, penalty: 0, lh: 0, dlh: 0, ci: 0,
     technicalFouls: 0, technicalPenalty: 0, total: 1.6,
   });
   assert.deepEqual(calculateScores("Дон", "", "0.4", "red"), {
-    team: "black", base: 0, extra: 0, penalty: 0.4, lh: 0, ci: 0,
+    team: "black", base: 0, extra: 0, penalty: 0.4, lh: 0, dlh: 0, ci: 0,
     technicalFouls: 0, technicalPenalty: 0, total: -0.4,
   });
 });
@@ -98,10 +98,10 @@ test("best move awards 0.5 for two black roles and 0.8 for three", () => {
   assert.equal(calculateBestMoveBonus([2, 3, 4], null), 0);
 });
 
-test("manual extra, penalty, technical foul, best move and CI are separate score components", () => {
-  assert.deepEqual(calculateScores("Мирный", "0.2", "0.4", "red", 0.5, 0.3, 2), {
-    team: "red", base: 1, extra: 0.2, penalty: 0.4, lh: 0.5, ci: 0.3,
-    technicalFouls: 1, technicalPenalty: -0.3, total: 1.3,
+test("manual, technical, night and day best-move scores stay separate", () => {
+  assert.deepEqual(calculateScores("Мирный", "0.2", "0.4", "red", 0.5, 0.3, 2, 0.8), {
+    team: "red", base: 1, extra: 0.2, penalty: 0.4, lh: 0.5, dlh: 0.8, ci: 0.3,
+    technicalFouls: 1, technicalPenalty: -0.3, total: 2.1,
   });
   const snapshot = buildGameSnapshot([
     {
@@ -112,22 +112,28 @@ test("manual extra, penalty, technical foul, best move and CI are separate score
       penalty: "0.4",
       isFirstKilled: true,
       bestMoveBonus: 0.8,
+      isDayBestMovePlayer: true,
+      dayBestMoveBonus: 0.5,
       technicalFouls: 1,
       notes: "Проверить речь",
     },
   ], "red", {
     now: new Date("2026-08-17T12:00:00Z"),
     bestMove: [2, 8, 10],
+    dayBestMove: [8, 9, 10],
   });
   assert.equal(snapshot.players[0].extra, 0.2);
   assert.equal(snapshot.players[0].penalty, 0.4);
   assert.equal(snapshot.players[0].lh, 0.8);
+  assert.equal(snapshot.players[0].dlh, 0.5);
   assert.equal(snapshot.players[0].ci, 0);
   assert.equal(snapshot.players[0].technicalFouls, 1);
-  assert.equal(snapshot.players[0].total, 1.3);
+  assert.equal(snapshot.players[0].total, 1.8);
   assert.equal(snapshot.players[0].notes, "Проверить речь");
   assert.equal(snapshot.players[0].isFirstKilled, true);
+  assert.equal(snapshot.players[0].isDayBestMovePlayer, true);
   assert.deepEqual(snapshot.bestMove, [2, 8, 10]);
+  assert.deepEqual(snapshot.dayBestMove, [8, 9, 10]);
 });
 
 test("a matching archived game recovers the first-killed marker from the current game", () => {

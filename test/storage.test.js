@@ -4,12 +4,12 @@ import assert from "node:assert/strict";
 import { assertCompatibleServer } from "../js/storage.js";
 
 test("current server API is accepted", () => {
-  assert.doesNotThrow(() => assertCompatibleServer({ apiVersion: 2 }));
+  assert.doesNotThrow(() => assertCompatibleServer({ apiVersion: 3 }));
 });
 
-test("a server from before separate penalty scoring asks for restart", () => {
+test("a server from before day-best-move scoring asks for restart", () => {
   assert.throws(
-    () => assertCompatibleServer({ apiVersion: 1 }),
+    () => assertCompatibleServer({ apiVersion: 2 }),
     /снова запустите start\.command/,
   );
 });

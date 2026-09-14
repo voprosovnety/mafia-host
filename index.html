@@ -47,6 +47,20 @@
               </div>
             </div>
             <div class="voting-rounds" id="voting-rounds" aria-live="polite"></div>
+            <section class="day-best-move" aria-labelledby="day-best-move-heading">
+              <div class="best-move-heading">
+                <h3 id="day-best-move-heading">ДЛХ</h3>
+                <div class="best-move-meta">
+                  <span id="day-best-move-player" role="status">Игрок —</span>
+                  <output id="day-best-move-bonus" aria-label="Автоматический балл за ДЛХ">+0</output>
+                </div>
+              </div>
+              <div class="best-move-inputs" aria-label="Три игрока дневного лучшего хода">
+                <input class="best-move-input day-best-move-input" type="number" min="1" max="10" step="1" placeholder="№" aria-label="Первый игрок ДЛХ" />
+                <input class="best-move-input day-best-move-input" type="number" min="1" max="10" step="1" placeholder="№" aria-label="Второй игрок ДЛХ" />
+                <input class="best-move-input day-best-move-input" type="number" min="1" max="10" step="1" placeholder="№" aria-label="Третий игрок ДЛХ" />
+              </div>
+            </section>
           </section>
 
           <section class="night-panel" aria-labelledby="night-heading">

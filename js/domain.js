@@ -119,18 +119,20 @@ export function calculateScores(
   lhValue = 0,
   ciValue = 0,
   technicalFoulsValue = 0,
+  dlhValue = 0,
 ) {
   const team = getRoleTeam(role);
   const base = winner && team ? Number(winner === team) : null;
   const { extra, penalty } = normalizeManualScores(extraValue, penaltyValue);
   const lh = Number.isFinite(Number(lhValue)) ? roundScore(Number(lhValue)) : 0;
+  const dlh = Number.isFinite(Number(dlhValue)) ? roundScore(Number(dlhValue)) : 0;
   const ci = Number.isFinite(Number(ciValue)) ? roundScore(Number(ciValue)) : 0;
   const technicalFouls = normalizeTechnicalFouls(technicalFoulsValue);
   const technicalPenalty = calculateTechnicalFoulPenalty(technicalFouls);
   const total = base === null || extra === null || penalty === null
     ? null
-    : roundScore(base + extra - penalty + lh + ci + technicalPenalty);
-  return { team, base, extra, penalty, lh, ci, technicalFouls, technicalPenalty, total };
+    : roundScore(base + extra - penalty + lh + dlh + ci + technicalPenalty);
+  return { team, base, extra, penalty, lh, dlh, ci, technicalFouls, technicalPenalty, total };
 }
 
 export function winnerLabel(winner) {
@@ -148,6 +150,7 @@ export function buildGameSnapshot(
     : (nowOrOptions || {});
   const now = options.now instanceof Date ? options.now : new Date();
   const storedBestMove = Array.isArray(options.bestMove) ? options.bestMove : [];
+  const storedDayBestMove = Array.isArray(options.dayBestMove) ? options.dayBestMove : [];
   const game = {
     id: now.toISOString(),
     date: now.toLocaleDateString("ru-RU"),
@@ -162,8 +165,13 @@ export function buildGameSnapshot(
       const number = Number(storedBestMove[index]);
       return Number.isInteger(number) && number >= 1 && number <= PLAYER_COUNT ? number : null;
     }),
+    dayBestMove: [0, 1, 2].map((index) => {
+      const number = Number(storedDayBestMove[index]);
+      return Number.isInteger(number) && number >= 1 && number <= PLAYER_COUNT ? number : null;
+    }),
     players: players.map((player) => {
       const bestMoveBonus = player.isFirstKilled ? player.bestMoveBonus : 0;
+      const dayBestMoveBonus = player.isDayBestMovePlayer ? player.dayBestMoveBonus : 0;
       const scores = calculateScores(
         player.role,
         player.extra,
@@ -172,6 +180,7 @@ export function buildGameSnapshot(
         bestMoveBonus,
         0,
         player.technicalFouls,
+        dayBestMoveBonus,
       );
       return {
         number: player.number,
@@ -181,11 +190,13 @@ export function buildGameSnapshot(
         extra: scores.extra,
         penalty: scores.penalty,
         lh: scores.lh,
+        dlh: scores.dlh,
         ci: scores.ci,
         technicalFouls: scores.technicalFouls,
         total: scores.total,
         notes: typeof player.notes === "string" ? player.notes : "",
         isFirstKilled: player.isFirstKilled === true,
+        isDayBestMovePlayer: player.isDayBestMovePlayer === true,
       };
     }),
   };
@@ -232,10 +243,13 @@ function gameContentFingerprint(game) {
       const penalty = Number(player.penalty) || 0;
       const common = `${player.number}:${player.name}:${player.role}:${player.base}:${player.extra}:${penalty}:${player.total}`;
       const lh = Number(player.lh) || 0;
+      const dlh = Number(player.dlh) || 0;
       const ci = Number(player.ci) || 0;
       const technicalFouls = normalizeTechnicalFouls(player.technicalFouls);
-      if (technicalFouls !== 0) return `${common}:${lh}:${ci}:tf:${technicalFouls}`;
-      return lh === 0 && ci === 0 ? common : `${common}:${lh}:${ci}`;
+      const legacyFingerprint = technicalFouls !== 0
+        ? `${common}:${lh}:${ci}:tf:${technicalFouls}`
+        : lh === 0 && ci === 0 ? common : `${common}:${lh}:${ci}`;
+      return dlh === 0 ? legacyFingerprint : `${legacyFingerprint}:dlh:${dlh}`;
     })
     .join("|");
   return `${game.winner}|${players}`;

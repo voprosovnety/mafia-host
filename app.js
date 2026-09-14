@@ -7,6 +7,7 @@ import {
   recoverFirstKilledMarker,
   validateGame,
 } from "./js/domain.js";
+import { DayBestMoveController } from "./js/day-best-move.js";
 import { HistoryView } from "./js/history.js";
 import { LeaderboardView } from "./js/leaderboard.js";
 import { NightController } from "./js/night.js";
@@ -23,6 +24,7 @@ let currentWinner = null;
 let initialized = false;
 let timer = null;
 let night = null;
+let dayBestMove = null;
 
 const saveStatus = document.querySelector("#save-status");
 const historyStatus = document.querySelector("#history-status");
@@ -45,6 +47,7 @@ function persistCurrentGame() {
     currentRoundIndex: votingState.currentRoundIndex,
     votingRounds: votingState.votingRounds,
     night: night.getState(),
+    dayBestMove: dayBestMove.getState(),
     timer: timer.getState(),
     players: players.getState(),
   });
@@ -60,6 +63,16 @@ function syncFirstKilledAndBestMoveBonus() {
   night.setBestMoveBonus(bonus);
 }
 
+function syncDayBestMoveBonus() {
+  const playerNumber = voting.getDayBestMovePlayerNumber();
+  dayBestMove.setEligiblePlayer(playerNumber);
+  const bonus = playerNumber === null
+    ? 0
+    : calculateBestMoveBonus(dayBestMove.getBestMove(), players.getState());
+  players.setDayBestMove(playerNumber, bonus);
+  dayBestMove.setBonus(bonus);
+}
+
 function handleNightChange() {
   syncFirstKilledAndBestMoveBonus();
   voting.setNightKills(night.getNightKills());
@@ -68,6 +81,17 @@ function handleNightChange() {
 
 function handlePlayersChange() {
   syncFirstKilledAndBestMoveBonus();
+  syncDayBestMoveBonus();
+  persistCurrentGame();
+}
+
+function handleVotingChange() {
+  syncDayBestMoveBonus();
+  persistCurrentGame();
+}
+
+function handleDayBestMoveChange() {
+  syncDayBestMoveBonus();
   persistCurrentGame();
 }
 
@@ -75,7 +99,7 @@ const voting = new VotingController({
   roundsElement: document.querySelector("#voting-rounds"),
   nextButton: document.querySelector("#next-round"),
   resetButton: document.querySelector("#reset-rounds"),
-  onChange: persistCurrentGame,
+  onChange: handleVotingChange,
 });
 
 const players = new PlayersController({
@@ -100,6 +124,13 @@ night = new NightController({
   bestMoveBonusOutput: document.querySelector("#best-move-bonus"),
   bestMoveInputs: document.querySelectorAll(".best-move-input"),
   onChange: handleNightChange,
+});
+
+dayBestMove = new DayBestMoveController({
+  playerOutput: document.querySelector("#day-best-move-player"),
+  bonusOutput: document.querySelector("#day-best-move-bonus"),
+  inputs: document.querySelectorAll(".day-best-move-input"),
+  onChange: handleDayBestMoveChange,
 });
 
 timer = new TimerController({
@@ -146,6 +177,7 @@ async function recoverCurrentGameFirstKilledMarker() {
 
   const currentSnapshot = buildGameSnapshot(playerState, currentWinner, {
     bestMove: night.getState().bestMove,
+    dayBestMove: dayBestMove.getBestMove(),
   });
   const savedIndex = savedGames.findIndex((game) => (
     getGameId(game) === getGameId(currentSnapshot)
@@ -207,6 +239,7 @@ newGameButton.addEventListener("click", () => {
   selectWinner(null, false);
   players.resetGameState();
   voting.reset();
+  dayBestMove.reset();
   timer.reset();
   night.reset();
   setStatus(saveStatus, "Новая игра начата — рассадка сохранена");
@@ -223,6 +256,7 @@ saveGameButton.addEventListener("click", async () => {
 
   const game = buildGameSnapshot(playerState, currentWinner, {
     bestMove: night.getState().bestMove,
+    dayBestMove: dayBestMove.getBestMove(),
   });
   if (savedGames.some((savedGame) => getGameId(savedGame) === game.gameId)) {
     setStatus(saveStatus, `Эта игра уже сохранена — ID ${game.gameId}`, true);
@@ -253,7 +287,9 @@ const storedCurrentGame = currentGameStore.load();
 players.restore(storedCurrentGame?.players);
 voting.restore(storedCurrentGame?.votingRounds, storedCurrentGame?.currentRoundIndex);
 night.restore(storedCurrentGame?.night);
+dayBestMove.restore(storedCurrentGame?.dayBestMove);
 syncFirstKilledAndBestMoveBonus();
+syncDayBestMoveBonus();
 voting.setNightKills(night.getNightKills());
 selectWinner(storedCurrentGame?.winner, false);
 timer.restore(storedCurrentGame?.timer);

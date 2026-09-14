@@ -9,7 +9,7 @@ from pathlib import Path
 ALLOWED_ROLES = {"Мирный", "Шериф", "Мафия", "Дон"}
 MAX_TECHNICAL_FAULTS = 1
 TECHNICAL_FAULT_PENALTY = -0.3
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 
 class ValidationError(ValueError):
@@ -29,18 +29,18 @@ def score_number(value: object, field: str) -> float | int:
     return int(number) if number.is_integer() else round(number, 2)
 
 
-def normalize_best_move(value: object) -> list[int | None]:
+def normalize_best_move(value: object, field: str = "ЛХ") -> list[int | None]:
     if value is None:
         return [None, None, None]
     if not isinstance(value, list) or len(value) > 3:
-        raise ValidationError("ЛХ должен содержать не более трёх номеров")
+        raise ValidationError(f"{field} должен содержать не более трёх номеров")
 
     normalized: list[int | None] = []
     for number in value:
         if number is None:
             normalized.append(None)
         elif isinstance(number, bool) or not isinstance(number, int) or not 1 <= number <= 10:
-            raise ValidationError("Номер игрока в ЛХ должен быть от 1 до 10")
+            raise ValidationError(f"Номер игрока в {field} должен быть от 1 до 10")
         else:
             normalized.append(number)
     return (normalized + [None, None, None])[:3]
@@ -56,6 +56,7 @@ def normalize_game(value: object) -> dict:
     game_time = str(value.get("time", "")).strip()
     winner = str(value.get("winner", "")).strip()
     best_move = normalize_best_move(value.get("bestMove"))
+    day_best_move = normalize_best_move(value.get("dayBestMove"), "ДЛХ")
     players = value.get("players")
 
     if not re.fullmatch(r"[a-zA-Z0-9_-]{3,100}", game_id):
@@ -85,6 +86,7 @@ def normalize_game(value: object) -> dict:
     normalized_players = []
     seen_numbers = set()
     first_killed_count = 0
+    day_best_move_player_count = 0
     for player in players:
         if not isinstance(player, dict):
             raise ValidationError("Некорректные данные игрока")
@@ -99,11 +101,13 @@ def normalize_game(value: object) -> dict:
             penalty = abs(extra)
             extra = 0
         lh = score_number(player.get("lh", 0), "ЛХ")
+        dlh = score_number(player.get("dlh", 0), "ДЛХ")
         ci = score_number(player.get("ci", 0), "CI")
         technical_fouls = player.get("technicalFouls", 0)
         total = score_number(player.get("total"), "Сумма")
         notes = player.get("notes", "")
         is_first_killed = player.get("isFirstKilled", False)
+        is_day_best_move_player = player.get("isDayBestMovePlayer", False)
 
         if isinstance(number, bool) or not isinstance(number, int) or not 1 <= number <= 10:
             raise ValidationError("Номер игрока должен быть от 1 до 10")
@@ -127,16 +131,20 @@ def normalize_game(value: object) -> dict:
             raise ValidationError(f"Некорректные заметки игрока {number}")
         technical_penalty = round(technical_fouls * TECHNICAL_FAULT_PENALTY, 2)
         expected_total = round(
-            float(base) + float(extra) - float(penalty) + float(lh) + float(ci) + technical_penalty,
+            float(base) + float(extra) - float(penalty) + float(lh) + float(dlh)
+            + float(ci) + technical_penalty,
             2,
         )
         if expected_total != round(float(total), 2):
             raise ValidationError(f"Неверная сумма баллов игрока {number}")
         if not isinstance(is_first_killed, bool):
             raise ValidationError(f"Некорректная отметка ПУ игрока {number}")
+        if not isinstance(is_day_best_move_player, bool):
+            raise ValidationError(f"Некорректная отметка ДЛХ игрока {number}")
 
         seen_numbers.add(number)
         first_killed_count += int(is_first_killed)
+        day_best_move_player_count += int(is_day_best_move_player)
         normalized_players.append({
             "number": number,
             "name": name,
@@ -145,17 +153,21 @@ def normalize_game(value: object) -> dict:
             "extra": extra,
             "penalty": penalty,
             "lh": lh,
+            "dlh": dlh,
             "ci": ci,
             "technicalFouls": technical_fouls,
             "total": total,
             "notes": notes,
             "isFirstKilled": is_first_killed,
+            "isDayBestMovePlayer": is_day_best_move_player,
         })
 
     if seen_numbers != set(range(1, 11)):
         raise ValidationError("В игре должны быть номера игроков от 1 до 10")
     if first_killed_count > 1:
         raise ValidationError("В игре может быть только один первый убиенный")
+    if day_best_move_player_count > 1:
+        raise ValidationError("В игре может быть только один получатель ДЛХ")
 
     normalized_players.sort(key=lambda player: player["number"])
     return {
@@ -166,6 +178,7 @@ def normalize_game(value: object) -> dict:
         "winner": winner,
         "winnerLabel": "Красные" if winner == "red" else "Чёрные",
         "bestMove": best_move,
+        "dayBestMove": day_best_move,
         "players": normalized_players,
     }
 
@@ -203,6 +216,9 @@ class GamesDatabase:
                     best_move_1 INTEGER CHECK (best_move_1 BETWEEN 1 AND 10),
                     best_move_2 INTEGER CHECK (best_move_2 BETWEEN 1 AND 10),
                     best_move_3 INTEGER CHECK (best_move_3 BETWEEN 1 AND 10),
+                    day_best_move_1 INTEGER CHECK (day_best_move_1 BETWEEN 1 AND 10),
+                    day_best_move_2 INTEGER CHECK (day_best_move_2 BETWEEN 1 AND 10),
+                    day_best_move_3 INTEGER CHECK (day_best_move_3 BETWEEN 1 AND 10),
                     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
                 );
@@ -216,12 +232,15 @@ class GamesDatabase:
                     extra_score REAL NOT NULL,
                     penalty_score REAL NOT NULL DEFAULT 0,
                     lh_score REAL NOT NULL DEFAULT 0,
+                    dlh_score REAL NOT NULL DEFAULT 0,
                     ci_score REAL NOT NULL DEFAULT 0,
                     technical_fouls INTEGER NOT NULL DEFAULT 0
                         CHECK (technical_fouls BETWEEN 0 AND 2),
                     total_score REAL NOT NULL,
                     notes TEXT NOT NULL DEFAULT '',
                     is_first_killed INTEGER NOT NULL DEFAULT 0 CHECK (is_first_killed IN (0, 1)),
+                    is_day_best_move_player INTEGER NOT NULL DEFAULT 0
+                        CHECK (is_day_best_move_player IN (0, 1)),
                     PRIMARY KEY (game_id, player_number)
                 );
 
@@ -281,6 +300,25 @@ class GamesDatabase:
                     WHERE extra_score < 0
                     """
                 )
+            for column in ("day_best_move_1", "day_best_move_2", "day_best_move_3"):
+                if schema_version < 6 and column not in game_columns:
+                    connection.execute(
+                        f"""
+                        ALTER TABLE games ADD COLUMN {column} INTEGER
+                        CHECK ({column} BETWEEN 1 AND 10)
+                        """
+                    )
+            if schema_version < 6 and "dlh_score" not in player_columns:
+                connection.execute(
+                    "ALTER TABLE players ADD COLUMN dlh_score REAL NOT NULL DEFAULT 0"
+                )
+            if schema_version < 6 and "is_day_best_move_player" not in player_columns:
+                connection.execute(
+                    """
+                    ALTER TABLE players ADD COLUMN is_day_best_move_player INTEGER NOT NULL DEFAULT 0
+                    CHECK (is_day_best_move_player IN (0, 1))
+                    """
+                )
             connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
 
     @staticmethod
@@ -289,27 +327,31 @@ class GamesDatabase:
             """
             INSERT INTO games (
                 game_id, record_id, game_date, game_time, winner,
-                best_move_1, best_move_2, best_move_3
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                best_move_1, best_move_2, best_move_3,
+                day_best_move_1, day_best_move_2, day_best_move_3
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 game["gameId"], game["id"], game["date"], game["time"], game["winner"],
                 *game["bestMove"],
+                *game["dayBestMove"],
             ),
         )
         connection.executemany(
             """
             INSERT INTO players (
                 game_id, player_number, nickname, role, base_score, extra_score, penalty_score, lh_score,
-                ci_score, technical_fouls, total_score, notes, is_first_killed
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                dlh_score, ci_score, technical_fouls, total_score, notes, is_first_killed,
+                is_day_best_move_player
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             [
                 (
                     game["gameId"], player["number"], player["name"], player["role"],
-                    player["base"], player["extra"], player["penalty"], player["lh"], player["ci"],
+                    player["base"], player["extra"], player["penalty"], player["lh"], player["dlh"],
+                    player["ci"],
                     player["technicalFouls"], player["total"], player["notes"],
-                    player["isFirstKilled"],
+                    player["isFirstKilled"], player["isDayBestMovePlayer"],
                 )
                 for player in game["players"]
             ],
@@ -320,14 +362,16 @@ class GamesDatabase:
             game_rows = connection.execute(
                 """
                 SELECT game_id, record_id, game_date, game_time, winner,
-                       best_move_1, best_move_2, best_move_3
+                       best_move_1, best_move_2, best_move_3,
+                       day_best_move_1, day_best_move_2, day_best_move_3
                 FROM games ORDER BY record_id
                 """
             ).fetchall()
             player_rows = connection.execute(
                 """
                 SELECT game_id, player_number, nickname, role, base_score, extra_score, penalty_score, lh_score,
-                       ci_score, technical_fouls, total_score, notes, is_first_killed
+                       dlh_score, ci_score, technical_fouls, total_score, notes, is_first_killed,
+                       is_day_best_move_player
                 FROM players ORDER BY game_id, player_number
                 """
             ).fetchall()
@@ -342,11 +386,13 @@ class GamesDatabase:
                 "extra": row["extra_score"],
                 "penalty": row["penalty_score"],
                 "lh": row["lh_score"],
+                "dlh": row["dlh_score"],
                 "ci": row["ci_score"],
                 "technicalFouls": row["technical_fouls"],
                 "total": row["total_score"],
                 "notes": row["notes"],
                 "isFirstKilled": bool(row["is_first_killed"]),
+                "isDayBestMovePlayer": bool(row["is_day_best_move_player"]),
             })
 
         return [
@@ -358,6 +404,9 @@ class GamesDatabase:
                 "winner": row["winner"],
                 "winnerLabel": "Красные" if row["winner"] == "red" else "Чёрные",
                 "bestMove": [row["best_move_1"], row["best_move_2"], row["best_move_3"]],
+                "dayBestMove": [
+                    row["day_best_move_1"], row["day_best_move_2"], row["day_best_move_3"]
+                ],
                 "players": players_by_game.get(row["game_id"], []),
             }
             for row in game_rows

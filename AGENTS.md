@@ -55,16 +55,17 @@ Keep modules aligned with these responsibilities. Prefer pure functions in `js/d
 - The successful target of night 1 is the first-killed player; there is no separate manual first-killed control.
 - A miss in night 1 clears and disables all three best-move fields.
 - A first-killed player gets an automatic best-move bonus of 0.5 for two distinct black-role picks or 0.8 for three; it is stored separately and included in the total score.
+- A sole player eliminated in voting round 0 gets access to ДЛХ only after explicitly voting for another player before the last nomination. A self-vote, no vote, or the automatic remainder assigned to the last nomination does not grant ДЛХ. Its 0.5/0.8 bonus follows the regular ЛХ rule and is stored separately.
 - Current-game base scores are derived from role team and winning team.
 - Manual extras and penalties are independent select controls with no arbitrary text input. Extras allow 0.2, 0.4, 0.6, 0.8, 1, and 1.2; penalties allow 0.2, 0.4, 0.6, 0.8, 1, and 1.5. Empty selection means zero.
-- The total score adds the base result, extra, best-move, and CI components, then subtracts the manual penalty and the 0.3 technical-foul penalty when present.
+- The total score adds the base result, extra, ЛХ, ДЛХ, and CI components, then subtracts the manual penalty and the 0.3 technical-foul penalty when present.
 - Saved games support create, read, edit, and delete through `/api/games`.
 - Duplicate game IDs return HTTP 409 and must not create another record.
 - Leaderboard date-time bounds are inclusive; an inverted interval is an error.
 
 ## Storage and safety
 
-Completed games live in SQLite schema version 5. Player scoring stores the base result, manual extra and penalty separately, technical-foul state (only 0 or 1), best-move (ЛХ), reserved CI score, and total separately. Saved games also store player notes and the three best-move picks. The unfinished current game still lives in browser `localStorage` so rapid input does not generate server traffic. Legacy browser games may be migrated from the current origin by `js/storage.js`. Old `file://` IndexedDB data belongs to a different browser origin and must be recovered through `legacy-recovery.html`; legacy CSV files are imported by `server.py`.
+Completed games live in SQLite schema version 6. Player scoring stores the base result, manual extra and penalty separately, technical-foul state (only 0 or 1), best-move (ЛХ), day best-move (ДЛХ), reserved CI score, and total separately. Saved games also store player notes and the three picks for both ЛХ types. The unfinished current game still lives in browser `localStorage` so rapid input does not generate server traffic. Legacy browser games may be migrated from the current origin by `js/storage.js`. Old `file://` IndexedDB data belongs to a different browser origin and must be recovered through `legacy-recovery.html`; legacy CSV files are imported by `server.py`.
 
 Never delete, overwrite, commit, or recreate `data/mafia-host.sqlite3` during routine development or tests. Tests must use temporary databases. Before changing the SQLite schema, add an explicit migration keyed by `PRAGMA user_version` and test upgrading an existing database.
 

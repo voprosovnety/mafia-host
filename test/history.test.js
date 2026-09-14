@@ -10,6 +10,7 @@ test("score breakdown contains only non-zero components", () => {
     penalty: 0.4,
     technicalFouls: 1,
     lh: 0.5,
+    dlh: 0.8,
     ci: 0.2,
   }), [
     { label: "Победа", value: "+1" },
@@ -17,6 +18,7 @@ test("score breakdown contains only non-zero components", () => {
     { label: "Штраф", value: "−0.4" },
     { label: "Техфол", value: "−0.3" },
     { label: "ЛХ", value: "+0.5" },
+    { label: "ДЛХ", value: "+0.8" },
     { label: "CI", value: "+0.2" },
   ]);
 });

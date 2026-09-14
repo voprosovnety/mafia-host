@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   analyzeVotingStage,
   buildRevoteStage,
+  dayBestMovePlayerFromVotingStages,
   formatVoterSequence,
   groupVotingStages,
   ineligibleVotersForStage,
@@ -18,6 +19,48 @@ import {
   stageHasFollowingRevote,
   VotingController,
 } from "../js/voting.js";
+
+test("day best move is available after an explicit vote away from self in round zero", () => {
+  const stages = normalizeVotingStages([{
+    roundNumber: 0,
+    nominations: [
+      { playerNumber: 1, voters: [2, 3, 4, 5, 6] },
+      { playerNumber: 2, voters: [1, 7, 8, 9] },
+      { playerNumber: 3, voters: [10] },
+    ],
+    eliminatedPlayers: [1],
+  }]);
+
+  assert.equal(dayBestMovePlayerFromVotingStages(stages), 1);
+});
+
+test("self-vote and automatic vote for the last nominee do not grant day best move", () => {
+  const stagesFor = (playerVoteTarget) => normalizeVotingStages([{
+    roundNumber: 0,
+    nominations: [
+      { playerNumber: 1, voters: playerVoteTarget === 1 ? [1, 2, 3, 4, 5] : [2, 3, 4, 5, 6] },
+      { playerNumber: 2, voters: [7, 8, 9, 10] },
+      { playerNumber: 3, voters: playerVoteTarget === 3 ? [1] : [] },
+    ],
+    eliminatedPlayers: [1],
+  }]);
+
+  assert.equal(dayBestMovePlayerFromVotingStages(stagesFor(1)), null);
+  assert.equal(dayBestMovePlayerFromVotingStages(stagesFor(3)), null);
+});
+
+test("day best move is unavailable outside round zero or when several players leave", () => {
+  assert.equal(dayBestMovePlayerFromVotingStages(normalizeVotingStages([{
+    roundNumber: 1,
+    nominations: [{ playerNumber: 1, voters: [2] }, { playerNumber: 2, voters: [1] }],
+    eliminatedPlayers: [1],
+  }])), null);
+  assert.equal(dayBestMovePlayerFromVotingStages(normalizeVotingStages([{
+    roundNumber: 0,
+    nominations: [{ playerNumber: 1, voters: [2] }, { playerNumber: 2, voters: [1] }],
+    eliminatedPlayers: [1, 2],
+  }])), null);
+});
 
 test("legacy voting rounds are restored as regular stages", () => {
   const stages = normalizeVotingStages([[2, 5, 2], [10]]);

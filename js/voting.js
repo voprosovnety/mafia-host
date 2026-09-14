@@ -188,6 +188,26 @@ export function roundOutcomeSummary(stages, stageIndexes) {
     : "Никто не покинул";
 }
 
+export function dayBestMovePlayerFromVotingStages(stages) {
+  const finalRoundZeroStage = (Array.isArray(stages) ? stages : [])
+    .filter((stage) => stage?.roundNumber === 0)
+    .at(-1);
+  if (finalRoundZeroStage?.eliminatedPlayers?.length !== 1) return null;
+
+  const playerNumber = finalRoundZeroStage.eliminatedPlayers[0];
+  const nominations = Array.isArray(finalRoundZeroStage.nominations)
+    ? finalRoundZeroStage.nominations
+    : [];
+  const votedNomination = nominations.find(({ voters }) => voters.includes(playerNumber));
+  const lastNomineeNumber = nominations.at(-1)?.playerNumber;
+  if (
+    !votedNomination
+    || votedNomination.playerNumber === playerNumber
+    || votedNomination.playerNumber === lastNomineeNumber
+  ) return null;
+  return playerNumber;
+}
+
 export function ineligibleVotersForStage(stages, stageIndex, killedFromRound = new Map()) {
   const ineligibleVoters = new Set();
   stages.slice(0, stageIndex).forEach((stage) => {
@@ -943,6 +963,10 @@ export class VotingController {
     this.renderAll();
     this.roundsElement.scrollTop = 0;
     this.onChange();
+  }
+
+  getDayBestMovePlayerNumber() {
+    return dayBestMovePlayerFromVotingStages(this.rounds);
   }
 
   getState() {

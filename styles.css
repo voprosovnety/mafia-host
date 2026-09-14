@@ -284,7 +284,7 @@ textarea {
 
 .voting-panel {
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
   min-height: 0;
   padding: var(--space-3) var(--space-4);
   border-top: 1px solid var(--line);
@@ -1047,7 +1047,8 @@ kbd {
   color: var(--accent);
 }
 
-.first-killed-badge {
+.first-killed-badge,
+.day-best-move-badge {
   padding: 0.08rem 0.2rem;
   border: 1px solid #4f9bc4;
   background: #173246;
@@ -1057,8 +1058,15 @@ kbd {
   letter-spacing: 0.06em;
 }
 
-.first-killed-badge[hidden] {
+.first-killed-badge[hidden],
+.day-best-move-badge[hidden] {
   display: none;
+}
+
+.day-best-move-badge {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 .player-row.is-first-killed {
@@ -1607,7 +1615,8 @@ kbd {
   font-variant-numeric: tabular-nums;
 }
 
-.history-first-killed-badge {
+.history-first-killed-badge,
+.history-day-best-move-badge {
   display: inline-block;
   margin-left: 0.3rem;
   padding: 0.08rem 0.22rem;
@@ -1618,6 +1627,12 @@ kbd {
   font-weight: 900;
   letter-spacing: 0.06em;
   vertical-align: 0.12rem;
+}
+
+.history-day-best-move-badge {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 .history-table th {
@@ -2319,6 +2334,19 @@ kbd {
   min-width: 8.4rem;
   padding-left: 0.75rem;
   border-left: 1px solid var(--line);
+}
+
+.day-best-move {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.65rem 0.45rem 0;
+  border-top: 1px solid var(--line);
+}
+
+.day-best-move .best-move-inputs {
+  margin-top: 0;
 }
 
 .best-move-heading {

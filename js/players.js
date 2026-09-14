@@ -84,6 +84,8 @@ export class PlayersController {
     this.activeNicknameSuggestionIndex = -1;
     this.winner = null;
     this.bestMoveBonus = 0;
+    this.dayBestMovePlayerNumber = null;
+    this.dayBestMoveBonus = 0;
     this.activeNotesRecord = null;
 
     notesText.addEventListener("input", () => this.storeActiveNotes());
@@ -181,7 +183,11 @@ export class PlayersController {
     firstKilledBadge.className = "first-killed-badge";
     firstKilledBadge.textContent = "ПУ";
     firstKilledBadge.hidden = true;
-    number.append(numberValue, firstKilledBadge);
+    const dayBestMoveBadge = document.createElement("span");
+    dayBestMoveBadge.className = "day-best-move-badge";
+    dayBestMoveBadge.textContent = "ДЛХ";
+    dayBestMoveBadge.hidden = true;
+    number.append(numberValue, firstKilledBadge, dayBestMoveBadge);
 
     const name = document.createElement("input");
     name.className = "player-name";
@@ -254,6 +260,7 @@ export class PlayersController {
       technicalFaults,
       nominate,
       firstKilledBadge,
+      dayBestMoveBadge,
       base,
       extra,
       penalty,
@@ -261,6 +268,7 @@ export class PlayersController {
       notesButton,
       notes: "",
       isFirstKilled: false,
+      isDayBestMovePlayer: false,
     };
 
     for (let faultNumber = 1; faultNumber <= MAX_FAULTS; faultNumber += 1) {
@@ -487,6 +495,7 @@ export class PlayersController {
 
   updatePlayerScore(record) {
     const lh = record.isFirstKilled ? this.bestMoveBonus : 0;
+    const dlh = record.isDayBestMovePlayer ? this.dayBestMoveBonus : 0;
     const technicalFouls = Number(record.row.dataset.technicalFaults);
     const scores = calculateScores(
       record.role.value,
@@ -496,6 +505,7 @@ export class PlayersController {
       lh,
       0,
       technicalFouls,
+      dlh,
     );
     record.role.dataset.role = record.role.value;
     record.base.textContent = formatScore(scores.base);
@@ -503,7 +513,13 @@ export class PlayersController {
     record.base.classList.toggle("has-value", scores.base !== null);
     record.base.classList.toggle("is-winner", scores.base === 1);
     record.total.classList.toggle("has-value", scores.total !== null);
-    record.extra.title = lh > 0 ? `Допы; бонус ЛХ +${lh}` : "Допы";
+    const automaticBonuses = [
+      lh > 0 ? `ЛХ +${lh}` : "",
+      dlh > 0 ? `ДЛХ +${dlh}` : "",
+    ].filter(Boolean);
+    record.extra.title = automaticBonuses.length > 0
+      ? `Допы; ${automaticBonuses.join("; ")}`
+      : "Допы";
     record.penalty.title = "Штрафы";
   }
 
@@ -521,7 +537,7 @@ export class PlayersController {
       record.firstKilledBadge.hidden = !selected;
       record.name.setAttribute(
         "aria-label",
-        `${selected ? "Первый убиенный. " : ""}Никнейм игрока ${record.number}`,
+        `${selected ? "Первый убиенный. " : ""}${record.isDayBestMovePlayer ? "Получатель ДЛХ. " : ""}Никнейм игрока ${record.number}`,
       );
       this.updatePlayerScore(record);
     });
@@ -533,9 +549,28 @@ export class PlayersController {
     this.records.forEach((record) => this.updatePlayerScore(record));
   }
 
+  setDayBestMove(playerNumber, bonus) {
+    const selectedNumber = Number.isInteger(playerNumber) ? playerNumber : null;
+    this.dayBestMovePlayerNumber = selectedNumber;
+    this.dayBestMoveBonus = bonus === 0.5 || bonus === 0.8 ? bonus : 0;
+    this.records.forEach((record) => {
+      const selected = record.number === selectedNumber;
+      record.isDayBestMovePlayer = selected;
+      record.dayBestMoveBadge.hidden = !selected;
+      record.name.setAttribute(
+        "aria-label",
+        `${record.isFirstKilled ? "Первый убиенный. " : ""}${selected ? "Получатель ДЛХ. " : ""}Никнейм игрока ${record.number}`,
+      );
+      this.updatePlayerScore(record);
+    });
+  }
+
   resetGameState() {
     this.bestMoveBonus = 0;
+    this.dayBestMovePlayerNumber = null;
+    this.dayBestMoveBonus = 0;
     this.setFirstKilled(null, false);
+    this.setDayBestMove(null, 0);
     this.records.forEach((record) => {
       record.role.value = "";
       record.extra.value = "";
@@ -612,6 +647,8 @@ export class PlayersController {
       notes: record.notes,
       isFirstKilled: record.isFirstKilled,
       bestMoveBonus: record.isFirstKilled ? this.bestMoveBonus : 0,
+      isDayBestMovePlayer: record.isDayBestMovePlayer,
+      dayBestMoveBonus: record.isDayBestMovePlayer ? this.dayBestMoveBonus : 0,
     }));
   }
 
@@ -648,5 +685,6 @@ export class PlayersController {
     });
     this.fillRemainingCivilianRoles();
     this.setFirstKilled(null, false);
+    this.setDayBestMove(null, 0);
   }
 }
