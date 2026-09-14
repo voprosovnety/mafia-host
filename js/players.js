@@ -436,6 +436,17 @@ export class PlayersController {
   }
 
   handleNicknameKeydown(event, record) {
+    if (event.key === "Tab" && !event.altKey && !event.ctrlKey && !event.metaKey) {
+      this.hideNicknameSuggestions(record);
+      const index = this.records.indexOf(record);
+      const nextRecord = this.records[index + (event.shiftKey ? -1 : 1)];
+      if (nextRecord) {
+        event.preventDefault();
+        nextRecord.name.focus();
+      }
+      return;
+    }
+
     if (event.key === "Escape") {
       this.hideNicknameSuggestions(record);
       return;
