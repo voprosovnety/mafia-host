@@ -48,6 +48,21 @@ test("six votes still grant day best move when the eliminated player voted for t
   assert.equal(dayBestMovePlayerFromVotingStages(stages), 1);
 });
 
+test("a player gets no day best move when redirecting their vote could prevent elimination", () => {
+  const stages = normalizeVotingStages([{
+    roundNumber: 0,
+    nominations: [
+      { playerNumber: 1, voters: [1, 3] },
+      { playerNumber: 2, voters: [4, 5, 6, 10] },
+      { playerNumber: 3, voters: [7, 8, 9] },
+      { playerNumber: 4, voters: [2] },
+    ],
+    eliminatedPlayers: [2],
+  }]);
+
+  assert.equal(dayBestMovePlayerFromVotingStages(stages), null);
+});
+
 test("self-vote, missing vote and automatic self-break do not grant day best move", () => {
   const stagesFor = (playerVoteTarget) => normalizeVotingStages([{
     roundNumber: 0,

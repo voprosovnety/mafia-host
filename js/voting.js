@@ -188,6 +188,28 @@ export function roundOutcomeSummary(stages, stageIndexes) {
     : "Никто не покинул";
 }
 
+function playerCouldPreventElimination(nominations, playerNumber, votedNomination) {
+  const counts = new Map(nominations.map((nomination) => (
+    [nomination.playerNumber, nomination.voters.length]
+  )));
+  const currentTarget = votedNomination.playerNumber;
+  return nominations.some((targetNomination) => {
+    const targetNumber = targetNomination.playerNumber;
+    if (targetNumber === playerNumber || targetNumber === currentTarget) return false;
+
+    const redirectedCounts = new Map(counts);
+    redirectedCounts.set(currentTarget, redirectedCounts.get(currentTarget) - 1);
+    redirectedCounts.set(targetNumber, redirectedCounts.get(targetNumber) + 1);
+    const playerVotes = redirectedCounts.get(playerNumber);
+    const highestOtherVotes = Math.max(
+      ...nominations
+        .filter((nomination) => nomination.playerNumber !== playerNumber)
+        .map((nomination) => redirectedCounts.get(nomination.playerNumber)),
+    );
+    return playerVotes <= highestOtherVotes;
+  });
+}
+
 export function dayBestMovePlayerFromVotingStages(stages) {
   const finalRoundZeroStage = (Array.isArray(stages) ? stages : [])
     .filter((stage) => stage?.roundNumber === 0)
@@ -199,18 +221,10 @@ export function dayBestMovePlayerFromVotingStages(stages) {
     ? finalRoundZeroStage.nominations
     : [];
   const votedNomination = nominations.find(({ voters }) => voters.includes(playerNumber));
-  const selfNomination = nominations.find((nomination) => nomination.playerNumber === playerNumber);
-  const finalNomination = nominations.at(-1);
-  const isAutomaticSelfBreak = selfNomination?.voters.length === 5
-    && votedNomination === finalNomination
-    && finalNomination?.voters.length === 1
-    && nominations.slice(0, -1).reduce((count, nomination) => (
-      count + nomination.voters.length
-    ), 0) === PLAYER_COUNT - 1;
   if (
     !votedNomination
     || votedNomination.playerNumber === playerNumber
-    || isAutomaticSelfBreak
+    || playerCouldPreventElimination(nominations, playerNumber, votedNomination)
   ) return null;
   return playerNumber;
 }
