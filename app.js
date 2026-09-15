@@ -233,7 +233,7 @@ winnerButtons.forEach((button) => {
 
 newGameButton.addEventListener("click", () => {
   const confirmed = window.confirm(
-    "Начать новую игру? Роли, фолы, техфолы, допы, штрафы, заметки, таймер, ночи и голосования будут сброшены. Ники останутся на своих местах.",
+    "Начать новую игру? Ники, роли, фолы, техфолы, допы, штрафы, заметки, таймер, ночи и голосования будут сброшены.",
   );
   if (!confirmed) return;
 
@@ -243,7 +243,7 @@ newGameButton.addEventListener("click", () => {
   dayBestMove.reset();
   timer.reset();
   night.reset();
-  setStatus(saveStatus, "Новая игра начата — рассадка сохранена");
+  setStatus(saveStatus, "Новая игра начата");
   persistCurrentGame();
 });
 

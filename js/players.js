@@ -574,9 +574,11 @@ export class PlayersController {
     this.bestMoveBonus = 0;
     this.dayBestMovePlayerNumber = null;
     this.dayBestMoveBonus = 0;
+    this.hideNicknameSuggestions();
     this.setFirstKilled(null, false);
     this.setDayBestMove(null, 0);
     this.records.forEach((record) => {
+      record.name.value = "";
       record.role.value = "";
       record.extra.value = "";
       record.penalty.value = "";
