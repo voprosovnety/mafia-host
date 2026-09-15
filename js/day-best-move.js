@@ -16,7 +16,8 @@ export function normalizeDayBestMoveState(state) {
 }
 
 export class DayBestMoveController {
-  constructor({ playerOutput, bonusOutput, inputs, onChange }) {
+  constructor({ section, playerOutput, bonusOutput, inputs, onChange }) {
+    this.section = section;
     this.playerOutput = playerOutput;
     this.bonusOutput = bonusOutput;
     this.inputs = [...inputs];
@@ -50,6 +51,7 @@ export class DayBestMoveController {
 
   render() {
     const available = this.state.playerNumber !== null;
+    this.section.hidden = !available;
     this.playerOutput.textContent = available ? `Игрок ${this.state.playerNumber}` : "Игрок —";
     this.inputs.forEach((input, index) => {
       input.disabled = !available;

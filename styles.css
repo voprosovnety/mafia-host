@@ -2345,6 +2345,10 @@ kbd {
   border-top: 1px solid var(--line);
 }
 
+.day-best-move[hidden] {
+  display: none;
+}
+
 .day-best-move .best-move-inputs {
   margin-top: 0;
 }

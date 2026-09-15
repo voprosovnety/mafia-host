@@ -199,11 +199,18 @@ export function dayBestMovePlayerFromVotingStages(stages) {
     ? finalRoundZeroStage.nominations
     : [];
   const votedNomination = nominations.find(({ voters }) => voters.includes(playerNumber));
-  const lastNomineeNumber = nominations.at(-1)?.playerNumber;
+  const selfNomination = nominations.find((nomination) => nomination.playerNumber === playerNumber);
+  const finalNomination = nominations.at(-1);
+  const isAutomaticSelfBreak = selfNomination?.voters.length === 5
+    && votedNomination === finalNomination
+    && finalNomination?.voters.length === 1
+    && nominations.slice(0, -1).reduce((count, nomination) => (
+      count + nomination.voters.length
+    ), 0) === PLAYER_COUNT - 1;
   if (
     !votedNomination
     || votedNomination.playerNumber === playerNumber
-    || votedNomination.playerNumber === lastNomineeNumber
+    || isAutomaticSelfBreak
   ) return null;
   return playerNumber;
 }

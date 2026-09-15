@@ -127,6 +127,7 @@ night = new NightController({
 });
 
 dayBestMove = new DayBestMoveController({
+  section: document.querySelector(".day-best-move"),
   playerOutput: document.querySelector("#day-best-move-player"),
   bonusOutput: document.querySelector("#day-best-move-bonus"),
   inputs: document.querySelectorAll(".day-best-move-input"),

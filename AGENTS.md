@@ -55,7 +55,7 @@ Keep modules aligned with these responsibilities. Prefer pure functions in `js/d
 - The successful target of night 1 is the first-killed player; there is no separate manual first-killed control.
 - A miss in night 1 clears and disables all three best-move fields.
 - A first-killed player gets an automatic best-move bonus of 0.5 for two distinct black-role picks or 0.8 for three; it is stored separately and included in the total score.
-- A sole player eliminated in voting round 0 gets access to ДЛХ only after explicitly voting for another player before the last nomination. A self-vote, no vote, or the automatic remainder assigned to the last nomination does not grant ДЛХ. Its 0.5/0.8 bonus follows the regular ЛХ rule and is stored separately.
+- A sole player eliminated in voting round 0 gets access to ДЛХ only after explicitly voting for another player. A self-vote, no vote, or an inferred automatic self-break (five votes against the player, four other votes before the final nomination, and the player's sole remainder in the final nomination) does not grant ДЛХ. Its 0.5/0.8 bonus follows the regular ЛХ rule and is stored separately.
 - Current-game base scores are derived from role team and winning team.
 - Manual extras and penalties are independent select controls with no arbitrary text input. Extras allow 0.2, 0.4, 0.6, 0.8, 1, and 1.2; penalties allow 0.2, 0.4, 0.6, 0.8, 1, and 1.5. Empty selection means zero.
 - The total score adds the base result, extra, ЛХ, ДЛХ, and CI components, then subtracts the manual penalty and the 0.3 technical-foul penalty when present.
