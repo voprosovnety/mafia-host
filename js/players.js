@@ -1,4 +1,5 @@
 import {
+  applyRoleSelection,
   autoFillCivilianRoles,
   calculateScores,
   CIVILIAN_ROLE,
@@ -160,8 +161,12 @@ export class PlayersController {
     return role;
   }
 
-  fillRemainingCivilianRoles() {
-    const roles = autoFillCivilianRoles(this.records.map((record) => record.role.value));
+  fillRemainingCivilianRoles(selectedIndex = -1) {
+    const selectedRoles = applyRoleSelection(
+      this.records.map((record) => record.role.value),
+      selectedIndex,
+    );
+    const roles = autoFillCivilianRoles(selectedRoles);
     this.records.forEach((record, index) => {
       record.role.value = roles[index];
     });
@@ -315,7 +320,7 @@ export class PlayersController {
     });
     name.addEventListener("keydown", (event) => this.handleNicknameKeydown(event, record));
     role.addEventListener("change", () => {
-      this.fillRemainingCivilianRoles();
+      this.fillRemainingCivilianRoles(record.number - 1);
       this.records.forEach((playerRecord) => this.updatePlayerScore(playerRecord));
       this.onChange();
     });
@@ -684,6 +689,7 @@ export class PlayersController {
       this.updatePlayerScore(record);
     });
     this.fillRemainingCivilianRoles();
+    this.records.forEach((record) => this.updatePlayerScore(record));
     this.setFirstKilled(null, false);
     this.setDayBestMove(null, 0);
   }

@@ -46,6 +46,52 @@ export function autoFillCivilianRoles(roles) {
   return roleList.map((role) => role || CIVILIAN_ROLE);
 }
 
+export function applyRoleSelection(roles, selectedIndex = -1) {
+  const roleList = Array.isArray(roles) ? [...roles] : [];
+  const hasSelectedPlayer = Number.isInteger(selectedIndex)
+    && selectedIndex >= 0
+    && selectedIndex < roleList.length;
+  const selectedRole = hasSelectedPlayer ? roleList[selectedIndex] : "";
+
+  const sheriffIndexes = roleList
+    .map((role, index) => (role === "Шериф" ? index : -1))
+    .filter((index) => index !== -1);
+  const keptSheriffIndex = selectedRole === "Шериф" ? selectedIndex : sheriffIndexes[0];
+  sheriffIndexes.forEach((index) => {
+    if (index !== keptSheriffIndex) roleList[index] = CIVILIAN_ROLE;
+  });
+
+  const donIndexes = roleList
+    .map((role, index) => (role === "Дон" ? index : -1))
+    .filter((index) => index !== -1);
+  const keptDonIndex = selectedRole === "Дон" ? selectedIndex : donIndexes[0];
+  const promotedDonIndexes = [];
+  donIndexes.forEach((index) => {
+    if (index === keptDonIndex) return;
+    roleList[index] = "Мафия";
+    promotedDonIndexes.push(index);
+  });
+
+  const protectedMafiaIndexes = new Set(promotedDonIndexes);
+  if (selectedRole === "Мафия") protectedMafiaIndexes.add(selectedIndex);
+  const mafiaIndexes = roleList
+    .map((role, index) => (role === "Мафия" ? index : -1))
+    .filter((index) => index !== -1);
+  const demotionCandidates = hasSelectedPlayer
+    ? [
+        ...mafiaIndexes.filter((index) => !protectedMafiaIndexes.has(index)),
+        ...mafiaIndexes.filter((index) => protectedMafiaIndexes.has(index)),
+      ]
+    : [...mafiaIndexes].reverse();
+  demotionCandidates
+    .slice(0, Math.max(0, mafiaIndexes.length - 2))
+    .forEach((index) => {
+      roleList[index] = CIVILIAN_ROLE;
+    });
+
+  return roleList;
+}
+
 export function calculateBestMoveBonus(bestMoveNumbers, players) {
   const rolesByNumber = new Map(
     (Array.isArray(players) ? players : [])

@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  applyRoleSelection,
   autoFillCivilianRoles,
   buildNicknameSuggestions,
   calculateBestMoveBonus,
@@ -39,6 +40,25 @@ test("remaining roles can be filled after all special roles are selected", () =>
   assert.deepEqual(
     autoFillCivilianRoles(["Мафия", "", "Дон", "", "Шериф"]),
     ["Мафия", "", "Дон", "", "Шериф"],
+  );
+});
+
+test("role selection keeps sheriff and don unique and limits mafia to two players", () => {
+  assert.deepEqual(
+    applyRoleSelection(["Шериф", "Мирный", "Шериф"], 2),
+    ["Мирный", "Мирный", "Шериф"],
+  );
+  assert.deepEqual(
+    applyRoleSelection(["Дон", "Мафия", "Мирный", "Дон"], 3),
+    ["Мафия", "Мафия", "Мирный", "Дон"],
+  );
+  assert.deepEqual(
+    applyRoleSelection(["Мафия", "Мафия", "Мафия"], 2),
+    ["Мирный", "Мафия", "Мафия"],
+  );
+  assert.deepEqual(
+    applyRoleSelection(["Дон", "Мафия", "Мафия", "Дон"], 3),
+    ["Мафия", "Мирный", "Мафия", "Дон"],
   );
 });
 
