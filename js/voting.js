@@ -188,28 +188,6 @@ export function roundOutcomeSummary(stages, stageIndexes) {
     : "Никто не покинул";
 }
 
-function playerCouldPreventElimination(nominations, playerNumber, votedNomination) {
-  const counts = new Map(nominations.map((nomination) => (
-    [nomination.playerNumber, nomination.voters.length]
-  )));
-  const currentTarget = votedNomination.playerNumber;
-  return nominations.some((targetNomination) => {
-    const targetNumber = targetNomination.playerNumber;
-    if (targetNumber === playerNumber || targetNumber === currentTarget) return false;
-
-    const redirectedCounts = new Map(counts);
-    redirectedCounts.set(currentTarget, redirectedCounts.get(currentTarget) - 1);
-    redirectedCounts.set(targetNumber, redirectedCounts.get(targetNumber) + 1);
-    const playerVotes = redirectedCounts.get(playerNumber);
-    const highestOtherVotes = Math.max(
-      ...nominations
-        .filter((nomination) => nomination.playerNumber !== playerNumber)
-        .map((nomination) => redirectedCounts.get(nomination.playerNumber)),
-    );
-    return playerVotes <= highestOtherVotes;
-  });
-}
-
 export function dayBestMovePlayerFromVotingStages(stages) {
   const finalRoundZeroStage = (Array.isArray(stages) ? stages : [])
     .filter((stage) => stage?.roundNumber === 0)
@@ -220,13 +198,10 @@ export function dayBestMovePlayerFromVotingStages(stages) {
   const nominations = Array.isArray(finalRoundZeroStage.nominations)
     ? finalRoundZeroStage.nominations
     : [];
-  const votedNomination = nominations.find(({ voters }) => voters.includes(playerNumber));
-  if (
-    !votedNomination
-    || votedNomination.playerNumber === playerNumber
-    || playerCouldPreventElimination(nominations, playerNumber, votedNomination)
-  ) return null;
-  return playerNumber;
+  const votedForSelf = nominations.some((nomination) => (
+    nomination.playerNumber === playerNumber && nomination.voters.includes(playerNumber)
+  ));
+  return votedForSelf ? null : playerNumber;
 }
 
 export function ineligibleVotersForStage(stages, stageIndex, killedFromRound = new Map()) {

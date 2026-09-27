@@ -20,7 +20,7 @@ import {
   VotingController,
 } from "../js/voting.js";
 
-test("day best move is available after an explicit vote away from self in round zero", () => {
+test("day best move can be offered after a vote away from self in round zero", () => {
   const stages = normalizeVotingStages([{
     roundNumber: 0,
     nominations: [
@@ -34,7 +34,7 @@ test("day best move is available after an explicit vote away from self in round 
   assert.equal(dayBestMovePlayerFromVotingStages(stages), 1);
 });
 
-test("six votes still grant day best move when the eliminated player voted for the last nominee", () => {
+test("six votes still allow day best move when the eliminated player voted for the last nominee", () => {
   const stages = normalizeVotingStages([{
     roundNumber: 0,
     nominations: [
@@ -48,7 +48,7 @@ test("six votes still grant day best move when the eliminated player voted for t
   assert.equal(dayBestMovePlayerFromVotingStages(stages), 1);
 });
 
-test("a player gets no day best move when redirecting their vote could prevent elimination", () => {
+test("day best move can be offered even when another vote could prevent elimination", () => {
   const stages = normalizeVotingStages([{
     roundNumber: 0,
     nominations: [
@@ -60,10 +60,10 @@ test("a player gets no day best move when redirecting their vote could prevent e
     eliminatedPlayers: [2],
   }]);
 
-  assert.equal(dayBestMovePlayerFromVotingStages(stages), null);
+  assert.equal(dayBestMovePlayerFromVotingStages(stages), 2);
 });
 
-test("self-vote, missing vote and automatic self-break do not grant day best move", () => {
+test("self-vote blocks day best move, while no vote still allows the offer", () => {
   const stagesFor = (playerVoteTarget) => normalizeVotingStages([{
     roundNumber: 0,
     nominations: [
@@ -75,8 +75,8 @@ test("self-vote, missing vote and automatic self-break do not grant day best mov
   }]);
 
   assert.equal(dayBestMovePlayerFromVotingStages(stagesFor(1)), null);
-  assert.equal(dayBestMovePlayerFromVotingStages(stagesFor(null)), null);
-  assert.equal(dayBestMovePlayerFromVotingStages(stagesFor(3)), null);
+  assert.equal(dayBestMovePlayerFromVotingStages(stagesFor(null)), 1);
+  assert.equal(dayBestMovePlayerFromVotingStages(stagesFor(3)), 1);
 });
 
 test("day best move is unavailable outside round zero or when several players leave", () => {

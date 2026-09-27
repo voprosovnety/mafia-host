@@ -8,18 +8,24 @@ function validPlayerNumber(value) {
 export function normalizeDayBestMoveState(state) {
   const storedBestMove = Array.isArray(state?.bestMove) ? state.bestMove : [];
   const playerNumber = validPlayerNumber(state?.playerNumber);
+  const enabled = playerNumber !== null && (typeof state?.enabled === "boolean"
+    ? state.enabled
+    : storedBestMove.some((number) => validPlayerNumber(number) !== null));
   return {
     playerNumber,
+    enabled,
     bestMove: [0, 1, 2].map((index) => validPlayerNumber(storedBestMove[index]))
-      .map((number) => playerNumber === null ? null : number),
+      .map((number) => enabled ? number : null),
   };
 }
 
 export class DayBestMoveController {
-  constructor({ section, playerOutput, bonusOutput, inputs, onChange }) {
+  constructor({ section, playerOutput, bonusOutput, toggleButton, inputsContainer, inputs, onChange }) {
     this.section = section;
     this.playerOutput = playerOutput;
     this.bonusOutput = bonusOutput;
+    this.toggleButton = toggleButton;
+    this.inputsContainer = inputsContainer;
     this.inputs = [...inputs];
     this.onChange = onChange;
     this.state = normalizeDayBestMoveState(null);
@@ -32,6 +38,12 @@ export class DayBestMoveController {
         this.onChange();
       });
     });
+    this.toggleButton.addEventListener("click", () => {
+      this.state.enabled = !this.state.enabled;
+      if (!this.state.enabled) this.state.bestMove = [null, null, null];
+      this.render();
+      this.onChange();
+    });
     this.render();
   }
 
@@ -40,7 +52,12 @@ export class DayBestMoveController {
     if (this.state.playerNumber === normalizedNumber) return;
     this.state.bestMove = [null, null, null];
     this.state.playerNumber = normalizedNumber;
+    this.state.enabled = false;
     this.render();
+  }
+
+  getSelectedPlayerNumber() {
+    return this.state.enabled ? this.state.playerNumber : null;
   }
 
   setBonus(bonus) {
@@ -53,23 +70,25 @@ export class DayBestMoveController {
     const available = this.state.playerNumber !== null;
     this.section.hidden = !available;
     this.playerOutput.textContent = available ? `Игрок ${this.state.playerNumber}` : "Игрок —";
+    this.toggleButton.textContent = this.state.enabled ? "Убрать ДЛХ" : "Добавить ДЛХ";
+    this.toggleButton.setAttribute("aria-pressed", String(this.state.enabled));
+    this.bonusOutput.hidden = !this.state.enabled;
+    this.inputsContainer.hidden = !this.state.enabled;
     this.inputs.forEach((input, index) => {
-      input.disabled = !available;
+      input.disabled = !this.state.enabled;
       input.value = this.state.bestMove[index] ?? "";
       input.classList.remove("is-invalid");
-      input.title = available
-        ? ""
-        : "ДЛХ доступен игроку, явно проголосовавшему не в себя перед выходом в круге 0";
     });
   }
 
   getBestMove() {
-    return [...this.state.bestMove];
+    return this.state.enabled ? [...this.state.bestMove] : [null, null, null];
   }
 
   getState() {
     return {
       playerNumber: this.state.playerNumber,
+      enabled: this.state.enabled,
       bestMove: [...this.state.bestMove],
     };
   }

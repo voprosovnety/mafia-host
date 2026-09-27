@@ -55,7 +55,8 @@
                   <output id="day-best-move-bonus" aria-label="Автоматический балл за ДЛХ">+0</output>
                 </div>
               </div>
-              <div class="best-move-inputs" aria-label="Три игрока дневного лучшего хода">
+              <button class="day-best-move-toggle" id="day-best-move-toggle" type="button" aria-pressed="false">Добавить ДЛХ</button>
+              <div class="best-move-inputs day-best-move-inputs" aria-label="Три игрока дневного лучшего хода" hidden>
                 <input class="best-move-input day-best-move-input" type="number" min="1" max="10" step="1" placeholder="№" aria-label="Первый игрок ДЛХ" />
                 <input class="best-move-input day-best-move-input" type="number" min="1" max="10" step="1" placeholder="№" aria-label="Второй игрок ДЛХ" />
                 <input class="best-move-input day-best-move-input" type="number" min="1" max="10" step="1" placeholder="№" aria-label="Третий игрок ДЛХ" />

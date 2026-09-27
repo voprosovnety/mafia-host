@@ -2350,7 +2350,35 @@ kbd {
 }
 
 .day-best-move .best-move-inputs {
+  grid-column: 1 / -1;
   margin-top: 0;
+}
+
+.day-best-move .best-move-inputs[hidden],
+.day-best-move .best-move-meta output[hidden] {
+  display: none;
+}
+
+.day-best-move-toggle {
+  min-height: 2rem;
+  padding: 0.3rem 0.6rem;
+  border: 1px solid var(--accent);
+  border-radius: 0;
+  background: transparent;
+  color: var(--accent);
+  font-size: 0.68rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.day-best-move-toggle:hover,
+.day-best-move-toggle[aria-pressed="true"] {
+  background: var(--accent-soft);
+}
+
+.day-best-move-toggle:focus-visible {
+  outline: 3px solid var(--text);
+  outline-offset: 2px;
 }
 
 .best-move-heading {

@@ -64,8 +64,8 @@ function syncFirstKilledAndBestMoveBonus() {
 }
 
 function syncDayBestMoveBonus() {
-  const playerNumber = voting.getDayBestMovePlayerNumber();
-  dayBestMove.setEligiblePlayer(playerNumber);
+  dayBestMove.setEligiblePlayer(voting.getDayBestMovePlayerNumber());
+  const playerNumber = dayBestMove.getSelectedPlayerNumber();
   const bonus = playerNumber === null
     ? 0
     : calculateBestMoveBonus(dayBestMove.getBestMove(), players.getState());
@@ -122,7 +122,7 @@ night = new NightController({
   addMissNightButton: document.querySelector("#add-night-miss"),
   firstKilledOutput: document.querySelector("#first-killed-output"),
   bestMoveBonusOutput: document.querySelector("#best-move-bonus"),
-  bestMoveInputs: document.querySelectorAll(".best-move-input"),
+  bestMoveInputs: document.querySelectorAll(".best-move-inline .best-move-input"),
   onChange: handleNightChange,
 });
 
@@ -130,6 +130,8 @@ dayBestMove = new DayBestMoveController({
   section: document.querySelector(".day-best-move"),
   playerOutput: document.querySelector("#day-best-move-player"),
   bonusOutput: document.querySelector("#day-best-move-bonus"),
+  toggleButton: document.querySelector("#day-best-move-toggle"),
+  inputsContainer: document.querySelector(".day-best-move-inputs"),
   inputs: document.querySelectorAll(".day-best-move-input"),
   onChange: handleDayBestMoveChange,
 });
