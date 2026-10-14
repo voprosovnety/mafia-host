@@ -284,7 +284,7 @@ textarea {
 
 .voting-panel {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr);
   min-height: 0;
   padding: var(--space-3) var(--space-4);
   border-top: 1px solid var(--line);
@@ -292,18 +292,35 @@ textarea {
 }
 
 .voting-heading-row {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.voting-title-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 1rem;
+  gap: var(--space-2);
+}
+
+.voting-content {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  min-height: 0;
+}
+
+.voting-content[hidden] {
+  display: none;
 }
 
 .voting-actions {
   display: flex;
+  justify-content: flex-end;
   gap: 0.5rem;
 }
 
 .next-round-button,
+.voting-visibility-button,
 .reset-rounds-button {
   min-height: 2.35rem;
   padding: 0.4rem 0.75rem;
@@ -321,7 +338,8 @@ textarea {
   color: var(--accent);
 }
 
-.reset-rounds-button {
+.reset-rounds-button,
+.voting-visibility-button {
   border: 1px solid var(--line);
   color: var(--muted);
 }
@@ -336,12 +354,14 @@ textarea {
   cursor: not-allowed;
 }
 
-.reset-rounds-button:hover {
+.reset-rounds-button:hover,
+.voting-visibility-button:hover {
   border-color: var(--text);
   color: var(--text);
 }
 
 .next-round-button:focus-visible,
+.voting-visibility-button:focus-visible,
 .reset-rounds-button:focus-visible,
 .nominate-button:focus-visible {
   outline: 3px solid var(--text);

@@ -46,6 +46,7 @@ function persistCurrentGame() {
     winner: currentWinner,
     currentRoundIndex: votingState.currentRoundIndex,
     votingRounds: votingState.votingRounds,
+    votingHidden: votingState.votingHidden,
     night: night.getState(),
     dayBestMove: dayBestMove.getState(),
     timer: timer.getState(),
@@ -99,6 +100,8 @@ const voting = new VotingController({
   roundsElement: document.querySelector("#voting-rounds"),
   nextButton: document.querySelector("#next-round"),
   resetButton: document.querySelector("#reset-rounds"),
+  visibilityButton: document.querySelector("#toggle-voting-visibility"),
+  contentElement: document.querySelector("#voting-content"),
   onChange: handleVotingChange,
 });
 
@@ -288,7 +291,7 @@ new SpaRouter({
 
 const storedCurrentGame = currentGameStore.load();
 players.restore(storedCurrentGame?.players);
-voting.restore(storedCurrentGame?.votingRounds, storedCurrentGame?.currentRoundIndex);
+voting.restore(storedCurrentGame?.votingRounds, storedCurrentGame?.currentRoundIndex, storedCurrentGame?.votingHidden);
 night.restore(storedCurrentGame?.night);
 dayBestMove.restore(storedCurrentGame?.dayBestMove);
 syncFirstKilledAndBestMoveBonus();

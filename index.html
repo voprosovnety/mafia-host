@@ -40,28 +40,33 @@
 
           <section class="voting-panel" aria-labelledby="voting-heading">
             <div class="voting-heading-row">
-              <h2 id="voting-heading">Голосование</h2>
+              <div class="voting-title-row">
+                <h2 id="voting-heading">Голосование</h2>
+                <button class="voting-visibility-button" id="toggle-voting-visibility" type="button" aria-controls="voting-content" aria-expanded="true">Скрыть голосование</button>
+              </div>
               <div class="voting-actions">
                 <button class="reset-rounds-button" id="reset-rounds" type="button">Сбросить круги</button>
                 <button class="next-round-button" id="next-round" type="button">Следующий круг</button>
               </div>
             </div>
-            <div class="voting-rounds" id="voting-rounds" aria-live="polite"></div>
-            <section class="day-best-move" aria-labelledby="day-best-move-heading" hidden>
-              <div class="best-move-heading">
-                <h3 id="day-best-move-heading">ДЛХ</h3>
-                <div class="best-move-meta">
-                  <span id="day-best-move-player" role="status">Игрок —</span>
-                  <output id="day-best-move-bonus" aria-label="Автоматический балл за ДЛХ">+0</output>
+            <div class="voting-content" id="voting-content">
+              <div class="voting-rounds" id="voting-rounds" aria-live="polite"></div>
+              <section class="day-best-move" aria-labelledby="day-best-move-heading" hidden>
+                <div class="best-move-heading">
+                  <h3 id="day-best-move-heading">ДЛХ</h3>
+                  <div class="best-move-meta">
+                    <span id="day-best-move-player" role="status">Игрок —</span>
+                    <output id="day-best-move-bonus" aria-label="Автоматический балл за ДЛХ">+0</output>
+                  </div>
                 </div>
-              </div>
-              <button class="day-best-move-toggle" id="day-best-move-toggle" type="button" aria-pressed="false">Добавить ДЛХ</button>
-              <div class="best-move-inputs day-best-move-inputs" aria-label="Три игрока дневного лучшего хода" hidden>
-                <input class="best-move-input day-best-move-input" type="number" min="1" max="10" step="1" placeholder="№" aria-label="Первый игрок ДЛХ" />
-                <input class="best-move-input day-best-move-input" type="number" min="1" max="10" step="1" placeholder="№" aria-label="Второй игрок ДЛХ" />
-                <input class="best-move-input day-best-move-input" type="number" min="1" max="10" step="1" placeholder="№" aria-label="Третий игрок ДЛХ" />
-              </div>
-            </section>
+                <button class="day-best-move-toggle" id="day-best-move-toggle" type="button" aria-pressed="false">Добавить ДЛХ</button>
+                <div class="best-move-inputs day-best-move-inputs" aria-label="Три игрока дневного лучшего хода" hidden>
+                  <input class="best-move-input day-best-move-input" type="number" min="1" max="10" step="1" placeholder="№" aria-label="Первый игрок ДЛХ" />
+                  <input class="best-move-input day-best-move-input" type="number" min="1" max="10" step="1" placeholder="№" aria-label="Второй игрок ДЛХ" />
+                  <input class="best-move-input day-best-move-input" type="number" min="1" max="10" step="1" placeholder="№" aria-label="Третий игрок ДЛХ" />
+                </div>
+              </section>
+            </div>
           </section>
 
           <section class="night-panel" aria-labelledby="night-heading">

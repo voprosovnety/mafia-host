@@ -307,9 +307,12 @@ export function buildRevoteStage(sourceStage, candidates = sourceStage.revoteCan
 }
 
 export class VotingController {
-  constructor({ roundsElement, nextButton, resetButton, onChange }) {
+  constructor({ roundsElement, nextButton, resetButton, visibilityButton, contentElement, onChange }) {
     this.roundsElement = roundsElement;
     this.nextButton = nextButton;
+    this.visibilityButton = visibilityButton;
+    this.contentElement = contentElement;
+    this.votingHidden = false;
     this.onChange = onChange;
     this.rounds = [emptyRound(0)];
     this.currentRoundIndex = 0;
@@ -322,7 +325,23 @@ export class VotingController {
 
     nextButton.addEventListener("click", () => this.startNextRound());
     resetButton.addEventListener("click", () => this.reset());
+    visibilityButton.addEventListener("click", () => {
+      this.setVotingHidden(!this.votingHidden);
+      this.onChange();
+    });
     this.renderAll();
+  }
+
+  setVotingHidden(hidden) {
+    this.votingHidden = hidden === true;
+    this.updateVotingVisibility();
+    this.updateNominationButtons();
+  }
+
+  updateVotingVisibility() {
+    this.contentElement.hidden = this.votingHidden;
+    this.visibilityButton.textContent = this.votingHidden ? "Показать голосование" : "Скрыть голосование";
+    this.visibilityButton.setAttribute("aria-expanded", String(!this.votingHidden));
   }
 
   registerNominationButton(playerNumber, button) {
@@ -624,6 +643,7 @@ export class VotingController {
   }
 
   renderAll() {
+    this.updateVotingVisibility();
     this.roundsElement.replaceChildren();
     this.roundElements = new Map();
     this.stageElements = [];
@@ -645,14 +665,17 @@ export class VotingController {
     this.nominationButtons.forEach((button, playerNumber) => {
       const nominated = currentNominees.includes(playerNumber);
       const playerRow = button.closest(".player-row");
-      playerRow?.classList.toggle("is-nominated", nominated);
-      button.classList.toggle("is-nominated", nominated);
+      playerRow?.classList.toggle("is-nominated", nominated && !this.votingHidden);
+      button.classList.toggle("is-nominated", nominated && !this.votingHidden);
       button.disabled = false;
-      const actionLabel = nominated
-        ? `Снять игрока ${playerNumber} с голосования`
-        : `Выставить игрока ${playerNumber} на голосование`;
+      const actionLabel = this.votingHidden
+        ? `Изменить выставление игрока ${playerNumber}`
+        : nominated
+          ? `Снять игрока ${playerNumber} с голосования`
+          : `Выставить игрока ${playerNumber} на голосование`;
       button.setAttribute("aria-label", actionLabel);
-      button.setAttribute("aria-pressed", String(nominated));
+      if (this.votingHidden) button.removeAttribute("aria-pressed");
+      else button.setAttribute("aria-pressed", String(nominated));
       button.title = isRevote
         ? `${actionLabel}. Изменение состава перестроит переголосование`
         : actionLabel;
@@ -968,6 +991,7 @@ export class VotingController {
   getState() {
     return {
       currentRoundIndex: this.currentRoundIndex,
+      votingHidden: this.votingHidden,
       votingRounds: this.rounds.map((stage) => ({
         ...stage,
         nominations: stage.nominations.map((nomination) => ({
@@ -982,7 +1006,7 @@ export class VotingController {
     };
   }
 
-  restore(rounds, currentRoundIndex) {
+  restore(rounds, currentRoundIndex, votingHidden = false) {
     this.rounds = normalizeVotingStages(rounds);
     this.collapsedRounds = new Set(this.rounds.map(({ roundNumber }) => roundNumber));
     this.hasAppliedNightKills = false;
@@ -990,6 +1014,7 @@ export class VotingController {
     this.currentRoundIndex = Number.isInteger(storedIndex)
       ? Math.min(Math.max(0, storedIndex), this.rounds.length - 1)
       : this.rounds.length - 1;
+    this.votingHidden = votingHidden === true;
     this.renderAll();
   }
 }
